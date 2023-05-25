@@ -4,8 +4,59 @@ from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 
 
+from layout import get_app_data_stores, get_layout
+import callbacks
+
+
+# logos
+ATMO_ACCESS_LOGO_FILENAME = 'atmo_access_logo.png'
+IAGOS_LOGO_FILENAME = 'iagos_logo.png'
+
+
+# Begin of definition of routines which constructs components of the dashboard
+
 def get_dashboard_layout(app):
-    return html.Div(children='Hello from ATMO-ACCESS footprint service!')
+    # logo and application title
+    title_and_logo_bar = html.Div(
+        style={'display': 'flex', 'justify-content': 'space-between', 'margin-bottom': '20px'},
+        children=[
+            html.Div(
+                children=[
+                    html.H2('FLEXPART footprints and SOFT-IO CO contribution viewer', style={'font-weight': 'bold'}),
+                    html.H3('tropospheric vertical profiles', style={'font-weight': 'bold'}),
+                ],
+                style={'text-align': 'center'},
+            ),
+            html.Div(children=[
+                html.A(
+                    html.Img(
+                        src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
+                        style={'float': 'right', 'height': '70px', 'margin-top': '10px'}
+                    ),
+                    href="https://www.atmo-access.eu/",
+                ),
+            ]),
+        ]
+    )
+
+    app_layout = get_layout()
+
+    layout = html.Div(
+        id='app-container-div',
+        style={'margin': '30px', 'padding-bottom': '50px'},
+        children=get_app_data_stores() + [
+            html.Div(
+                id='heading-div',
+                className='twelve columns',
+                children=[
+                    title_and_logo_bar,
+                    app_layout,
+                ]
+            )
+        ]
+    )
+
+    return layout
 
 
 app = Dash(
