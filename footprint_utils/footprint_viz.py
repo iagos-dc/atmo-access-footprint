@@ -25,6 +25,7 @@ def trim_small_values(da, threshold=0.01, check_if_lon_lat_increasing=False):
         if check_if_lon_lat_increasing:
             da = da.xrx.make_coordinates_increasing([lon, lat])
         da_filtered = da.where(da >= da.max() * threshold, drop=True)
+        # BUG: lon2, lat2 are 0 size arrays if da has nan's only
         lon2, lat2 = da_filtered[lon], da_filtered[lat]
         da = da.sel({lon: slice(lon2[0], lon2[-1]), lat: slice(lat2[0], lat2[-1])})
 
@@ -92,6 +93,10 @@ def regrid(da, upsampling_resol_factor=None, proj=3857, regrid_resol=None, is_pr
 
 
 def get_footprint_viz(da, threshold=0.003):
+    # BUG fix: must avoid poles - otherwise dash/plotly does not want to refresh the image layer on the map
+    # lat in [-85, 85] is because of the range of web Mercator projection
+    da = da.sel(latitude=slice(-85, 85))
+
     da = trim_small_values(da, threshold=threshold)
     agg, coordinates = regrid(da, upsampling_resol_factor=(10, 10), is_proj_rectilinear=True)
     im1 = tf.shade(agg, cmap=colorcet.CET_L17, how='linear', alpha=0)

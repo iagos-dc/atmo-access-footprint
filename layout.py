@@ -16,6 +16,7 @@ DATA_DOWNLOAD_BUTTON_ID = 'data_download_button'
 PREVIOUS_TIME_BUTTON_ID = 'previous_time_button'
 NEXT_TIME_BUTTON_ID = 'next_time_button'
 FOOTPRINT_MAP_GRAPH_ID = 'footprint_map_graph'
+CO_GRAPH_ID = 'CO_graph'
 
 GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
 
@@ -48,11 +49,12 @@ def get_layout():
     airport_selection = dbc.Select(
         id=AIRPORT_SELECT_ID,
         options=[
-            {'label': 'Frankfurt (FRA)', 'value': 'FRA'},
-            {'label': 'Munich (MUC)', 'value': 'MUC'},
+            #{'label': 'Frankfurt (FRA)', 'value': 'FRA'},
             {'label': 'Paris (CDG)', 'value': 'CDG'},
+            {'label': 'Munich (MUC)', 'value': 'MUC'},
+            {'label': 'Chicago (ORD)', 'value': 'ORD'},
         ],
-        value='FRA',
+        value='CDG',
     )
 
     vertical_layer_radio = dbc.RadioItems(
@@ -80,10 +82,10 @@ def get_layout():
     emission_inventory_checklist = dbc.Checklist(
         id=EMISSION_INVENTORY_CHECKLIST_ID,
         options=[
-            {'label': 'Biomass burning (GFAS v1.2)', 'value': 'BB-GFAS'},
-            {'label': 'Anthropogenic (CEDS v2)', 'value': 'AN-CEDS2'},
+            {'label': 'Biomass burning (GFAS v1.2)', 'value': 'GFAS'},
+            {'label': 'Anthropogenic (CEDS v2)', 'value': 'CEDS2'},
         ],
-        value=['BB-GFAS', 'AN-CEDS2'],
+        value=['GFAS', 'CEDS2'],
         inline=False,
     )
 
@@ -107,8 +109,8 @@ def get_layout():
     footprint_map_fig = go.Figure(
         data=go.Scattermapbox(),
         layout={
-            'mapbox_style': 'open-street-map',
-            #'mapbox_style': 'carto-positron',
+            #'mapbox_style': 'open-street-map',
+            'mapbox_style': 'carto-positron',
             'margin': {'r': 10, 't': 30, 'l': 10, 'b': 10},
             'width': 1000,
             'height': 600,
@@ -155,11 +157,14 @@ def get_layout():
         justify='between',
     ))
 
-    ts_graph = dcc.Graph()
+    ts_graph = dcc.Graph(
+        id=CO_GRAPH_ID,
+    )
 
     layout = html.Div(
         style={'margin': '20px'},
         children=dbc.Container([
+            dbc.Row(dbc.Container(id='foo-container')),
             dbc.Row([
                 dbc.Col([options_form, data_download_button], width=4),
                 dbc.Col([footprint_map, time_navigation_buttons], width=8),
