@@ -2,6 +2,18 @@ from dash import dcc, Dash
 from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
+import plotly.express as px
+
+import footprint_data_access
+
+
+IAGOS_COLOR_HEX = '#456096'
+IAGOS_AIRPORT_SIZE = 10
+MAPBOX_STYLES = {
+    'open-street-map': 'open street map',
+    'carto-positron': 'carto positron',
+}
+DEFAULT_MAPBOX_STYLE = 'carto-positron'
 
 
 CURRENT_TIME_BY_AIRPORT_STORE_ID = 'current_time_by_airport_store'
@@ -21,13 +33,83 @@ CO_GRAPH_ID = 'CO_graph'
 GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
 
 
+airports_df = footprint_data_access.get_iagos_airports(top=50).sort_values('long_name')
+airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))
+
+
 def get_app_data_stores():
     return [
         dcc.Store(id=CURRENT_TIME_BY_AIRPORT_STORE_ID, data={})
     ]
 
 
+def get_airports_map(airports_df):
+    fig = px.scatter_mapbox(
+        airports_df,
+        lat="latitude", lon="longitude", #color=IAGOS_COLOR_HEX,
+        hover_name="long_name",
+        hover_data={
+             'nprofiles': True,
+             'longitude': ':.2f',
+             'latitude': ':.2f',
+             'ground elevation': airports_df['altitude'].round(0).fillna('N/A').to_list(),
+             # 'marker_size': False
+         },
+        size_max=7,
+        zoom=2,
+        # width=1200, height=700,
+        center={'lon': 10, 'lat': 55},
+        title='IAGOS airports',
+    )
+
+    fig.update_traces(
+        marker={'color': IAGOS_COLOR_HEX, 'size': IAGOS_AIRPORT_SIZE},
+        marker_sizemode='area',
+        name='IAGOS airports',
+        #legendgroup='IAGOS airports3',
+        showlegend=True,
+    )
+
+    # fig.update_layout(
+    #     {
+    #         #'mapbox_style': 'open-street-map',
+    #         'mapbox_style': 'carto-positron',
+    #         'margin': {'r': 10, 't': 30, 'l': 10, 'b': 10},
+    #         'width': 1000,
+    #         'height': 600,
+    #     }
+    # )
+    fig.update_layout(
+        mapbox_style=DEFAULT_MAPBOX_STYLE,
+        margin={'autoexpand': True, 'r': 0, 't': 40, 'l': 0, 'b': 0},
+        # width=1100, height=700,
+        autosize=True,
+        # selectdirection='h', ???
+        clickmode='event',
+        dragmode='pan',
+        hoverdistance=1, hovermode='closest',  # hoverlabel=None,
+        selectionrevision=False,  # this is crucial !!!
+        #showlegend=True,
+    )
+
+    # print(fig)
+
+    return dcc.Graph(
+        id=FOOTPRINT_MAP_GRAPH_ID,
+        figure=fig,
+        config={
+            'displayModeBar': True,
+            'displaylogo': False,
+            'scrollZoom': True,
+        }
+    )
+
+
 def get_layout():
+    airports_df = footprint_data_access.get_iagos_airports(top=50).sort_values('long_name')
+    # with open('/home/wolp/tmp/top50_airports.txt', mode='w') as f:
+    #     f.writelines([f'{item}\n' for item in stations.short_name])
+
     def get_form_item(label, input_component):
         form_item = dbc.Row([
             dbc.Label(label, width=4),
@@ -49,12 +131,10 @@ def get_layout():
     airport_selection = dbc.Select(
         id=AIRPORT_SELECT_ID,
         options=[
-            #{'label': 'Frankfurt (FRA)', 'value': 'FRA'},
-            {'label': 'Paris (CDG)', 'value': 'CDG'},
-            {'label': 'Munich (MUC)', 'value': 'MUC'},
-            {'label': 'Chicago (ORD)', 'value': 'ORD'},
+            {'label': f'{long_name} ({short_name})', 'value': short_name}
+            for short_name, long_name in airport_name_by_code.items()
         ],
-        value='CDG',
+        value='FRA',
     )
 
     vertical_layer_radio = dbc.RadioItems(
@@ -106,25 +186,7 @@ def get_layout():
         get_form_item('CO contribution (emission region)', emission_region_selection),
     ])
 
-    footprint_map_fig = go.Figure(
-        data=go.Scattermapbox(),
-        layout={
-            #'mapbox_style': 'open-street-map',
-            'mapbox_style': 'carto-positron',
-            'margin': {'r': 10, 't': 30, 'l': 10, 'b': 10},
-            'width': 1000,
-            'height': 600,
-        }
-    )
-    footprint_map = dcc.Graph(
-        id=FOOTPRINT_MAP_GRAPH_ID,
-        figure=footprint_map_fig,
-        config={
-            'displayModeBar': True,
-            'displaylogo': False,
-            'scrollZoom': True,
-        }
-    )
+    footprint_map = get_airports_map(airports_df)
 
     data_download_button = dbc.Button(
         id=DATA_DOWNLOAD_BUTTON_ID,
@@ -159,6 +221,7 @@ def get_layout():
 
     ts_graph = dcc.Graph(
         id=CO_GRAPH_ID,
+        figure=go.Figure(),
     )
 
     layout = html.Div(
