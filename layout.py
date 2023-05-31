@@ -20,6 +20,7 @@ CURRENT_TIME_BY_AIRPORT_STORE_ID = 'current_time_by_airport_store'
 
 AIRPORT_SELECT_ID = 'airport_select'
 VERTICAL_LAYER_RADIO_ID = 'vertical_layer_radio'
+TIME_SELECT_ID = 'time_select'
 PERIOD_FROM_INPUT_ID = 'period_from_input'
 PERIOD_TO_INPUT_ID = 'period_to_input'
 EMISSION_INVENTORY_CHECKLIST_ID = 'emission_inventory_checklist'
@@ -148,16 +149,19 @@ def get_layout():
         inline=False
     )
 
-    period_input = dbc.InputGroup(
-        [
-            dbc.InputGroupText('From'),
-            time_input_field(PERIOD_FROM_INPUT_ID),
-            dbc.InputGroupText('to'),
-            time_input_field(PERIOD_TO_INPUT_ID),
-        ],
-        # id=interval_input_group_id(aio_id, aio_class),
-        # className='mb-3',
+    time_selection = dbc.Select(
+        id=TIME_SELECT_ID,
     )
+    # period_input = dbc.InputGroup(
+    #     [
+    #         dbc.InputGroupText('From'),
+    #         time_input_field(PERIOD_FROM_INPUT_ID),
+    #         dbc.InputGroupText('to'),
+    #         time_input_field(PERIOD_TO_INPUT_ID),
+    #     ],
+    #     # id=interval_input_group_id(aio_id, aio_class),
+    #     # className='mb-3',
+    # )
 
     emission_inventory_checklist = dbc.Checklist(
         id=EMISSION_INVENTORY_CHECKLIST_ID,
@@ -181,7 +185,7 @@ def get_layout():
     options_form = dbc.Form([
         get_form_item('Airport', airport_selection),
         get_form_item('Vertical layer', vertical_layer_radio),
-        get_form_item('Period', period_input),
+        get_form_item('Time', time_selection),
         get_form_item('CO contribution (emission inventory)', emission_inventory_checklist),
         get_form_item('CO contribution (emission region)', emission_region_selection),
     ])

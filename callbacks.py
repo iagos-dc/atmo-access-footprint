@@ -7,6 +7,7 @@ import pandas as pd
 import xarray as xr
 import dash
 from dash import Output, Input, State, Patch, callback
+
 import plotly.graph_objects as go
 
 import plotly.express as px
@@ -17,7 +18,7 @@ from utils import charts
 from log import log_exception, logger, log_callback
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
     NEXT_TIME_BUTTON_ID, CURRENT_TIME_BY_AIRPORT_STORE_ID, \
-    CO_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, \
+    CO_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_SELECT_ID, \
     airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
 
@@ -84,22 +85,67 @@ def foo123(map_click_data):
     State(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
 )
 @log_exception
-def update_current_time_by_airport(airport_code, previous_time_click, next_time_click, co_graph_click_data, curent_time_idx_by_airport):
+def update_current_time_by_airport(airport_code, previous_time_click, next_time_click, co_graph_click_data, current_time_idx_by_airport):
     dash_ctx = list(dash.ctx.triggered_prop_ids.values())
 
     _, CO_ts, idx_by_i = get_residtime_COts_idx_by_airport(airport_code)
+
     if co_graph_click_data is not None and CO_GRAPH_ID in dash_ctx:
         time_idx = co_graph_click_data['points'][0]['customdata']
+    elif airport_code is not None:
+        time_idx, _ = current_time_idx_by_airport.get(airport_code, (0, np.datetime64('nat')))
     else:
-        time_idx, _ = curent_time_idx_by_airport.get(airport_code, (0, np.datetime64('nat')))
+        raise dash.exceptions.PreventUpdate
 
     if PREVIOUS_TIME_BUTTON_ID in dash_ctx and time_idx > 0:
         time_idx -= 1
     if NEXT_TIME_BUTTON_ID in dash_ctx and time_idx < len(idx_by_i) - 1:
         time_idx += 1
+
     curr_time = pd.Timestamp(CO_ts['time'].isel({'i': time_idx}).item())
-    curent_time_idx_by_airport[airport_code] = time_idx, curr_time
-    return curent_time_idx_by_airport
+    current_time_idx_by_airport[airport_code] = time_idx, curr_time
+    return current_time_idx_by_airport
+
+
+
+# @callback(
+#     Output(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
+#     Output(TIME_SELECT_ID, 'value'),
+#     Output(TIME_SELECT_ID, 'options'),
+#     Input(AIRPORT_SELECT_ID, 'value'),
+#     Input(TIME_SELECT_ID, 'value'),
+#     Input(PREVIOUS_TIME_BUTTON_ID, 'n_clicks'),
+#     Input(NEXT_TIME_BUTTON_ID, 'n_clicks'),
+#     Input(CO_GRAPH_ID, 'clickData'),
+#     State(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
+# )
+# @log_exception
+# def update_current_time_by_airport(airport_code, time_idx, previous_time_click, next_time_click, co_graph_click_data, current_time_idx_by_airport):
+#     dash_ctx = list(dash.ctx.triggered_prop_ids.values())
+#
+#     time_by_time_idx = dash.no_update
+#     _, CO_ts, idx_by_i = get_residtime_COts_idx_by_airport(airport_code)
+#     if co_graph_click_data is not None and CO_GRAPH_ID in dash_ctx:
+#         time_idx = co_graph_click_data['points'][0]['customdata']
+#     elif time_idx is not None and TIME_SELECT_ID in dash_ctx:
+#         try:
+#             time_idx = int(time_idx)
+#         except ValueError:
+#             time_idx = 0
+#     elif airport_code is not None and AIRPORT_SELECT_ID in dash_ctx:
+#         time_idx, _ = current_time_idx_by_airport.get(airport_code, (0, np.datetime64('nat')))
+#         time_by_time_idx = dict(CO_ts['time'].to_series())
+#     elif time_idx is not None and PREVIOUS_TIME_BUTTON_ID in dash_ctx and time_idx > 0:
+#         time_idx -= 1
+#     elif time_idx is not None and NEXT_TIME_BUTTON_ID in dash_ctx and time_idx < len(idx_by_i) - 1:
+#         time_idx += 1
+#     else:
+#         raise dash.exceptions.PreventUpdate
+#
+#     print(time_idx, type(time_idx), CO_ts['time'])
+#     curr_time = pd.Timestamp(CO_ts['time'].isel({'i': time_idx}).item())
+#     current_time_idx_by_airport[airport_code] = time_idx, curr_time
+#     return current_time_idx_by_airport, time_idx, time_by_time_idx
 
 
 @callback(
@@ -135,9 +181,10 @@ def update_footprint_map(airport_code, vertical_layer, curent_time_idx_by_airpor
     Input(VERTICAL_LAYER_RADIO_ID, 'value'),
     Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
     Input(EMISSION_REGION_SELECT_ID, 'value'),
+    Input(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
 )
 @log_exception
-def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region):
+def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, curent_time_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
 
     _, CO_ts, _ = get_residtime_COts_idx_by_airport(airport_code)
@@ -166,6 +213,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     fig = charts.multi_line(
         df,
+        # use_GL=False,
         # line_dash_style_by_sublabel={'mean': 'solid', 'min': 'dot', 'max': 'dash'}
     )
     fig.update_traces(
@@ -175,10 +223,10 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         customdata=helper.insert_nan(np.arange(len(df['IAGOS'])), nan_idx),
     )
     fig.update_layout(
-        xaxis={
-            'rangeslider': {'visible': True},
+        # xaxis={
+            # 'rangeslider': {'visible': True},
             # 'type': 'date',
-        },
+        # },
         legend={
             'orientation': 'v',
             'yanchor': 'top',
@@ -190,37 +238,35 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
             'text': f'CO measurements by IAGOS and CO contributions by SOFT-IO (ppb)'
                     f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); layer={vertical_layer}; '
                     f'emission regions={emission_region}</sup>',
+        },
+        uirevision=airport_code,
+        #uirevision=True,
+    )
+
+    fig.update_layout(
+        {
+            'xaxis': {'domain': [0, 1]},
+            'yaxis': {'domain': [0, 0.48]},
+            'yaxis2': {'domain': [0.52, 1], 'overlaying': 'free'},
+            'yaxis3': {'domain': [0.52, 1], 'overlaying': 'y2'},
         }
     )
 
-    # print(fig['data'])
-    return fig
+    if curent_time_idx_by_airport is not None:
+        _, curr_time = curent_time_idx_by_airport.get(airport_code, (None, None))
+        if curr_time is not None:
+            fig['layout']['shapes'] = [
+                {
+                    'line': {'color': 'grey', 'width': 1, 'dash': 'dot'},
+                    'type': 'line',
+                    'x0': curr_time,
+                    'x1': curr_time,
+                    'xref': 'x',
+                    'y0': 0,
+                    'y1': 1 / 0.48,
+                    'yref': 'y domain',
+                }
+            ]
 
-
-@callback(
-    Output(CO_GRAPH_ID, 'figure', allow_duplicate=True),
-    Input(AIRPORT_SELECT_ID, 'value'),
-    Input(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
-    prevent_initial_call=True,
-)
-@log_exception
-def add_vertical_bar_to_CO_graph(airport_code, curent_time_idx_by_airport):
-    fig = Patch()
-    print(curent_time_idx_by_airport)
-    if curent_time_idx_by_airport is None:
-        raise dash.exceptions.PreventUpdate
-    _, curr_time = curent_time_idx_by_airport[airport_code]
-
-    fig['layout']['shapes'] = [
-        {
-            'line': {'color': 'grey', 'width': 2, 'dash': 'dot'},
-            'type': 'line',
-            'x0': curr_time,
-            'x1': curr_time,
-            'xref': 'x',
-            'y0': 0,
-            'y1': 1,
-            'yref': 'y domain',
-        }
-    ]
+    # print(fig)
     return fig
