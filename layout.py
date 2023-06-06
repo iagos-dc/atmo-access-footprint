@@ -16,7 +16,7 @@ MAPBOX_STYLES = {
 DEFAULT_MAPBOX_STYLE = 'carto-positron'
 
 
-CURRENT_TIME_BY_AIRPORT_STORE_ID = 'current_time_by_airport_store'
+CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID = 'current_profile_idx_by_airport_store'
 
 AIRPORT_SELECT_ID = 'airport_select'
 VERTICAL_LAYER_RADIO_ID = 'vertical_layer_radio'
@@ -34,20 +34,20 @@ CO_GRAPH_ID = 'CO_graph'
 GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
 
 
-airports_df = footprint_data_access.get_iagos_airports(top=50).sort_values('long_name')
+airports_df = footprint_data_access.get_iagos_airports(top=10).sort_values('long_name')
 airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))
 
 
 def get_app_data_stores():
     return [
-        dcc.Store(id=CURRENT_TIME_BY_AIRPORT_STORE_ID, data={})
+        dcc.Store(id=CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, data={})
     ]
 
 
 def get_airports_map(airports_df):
     fig = px.scatter_mapbox(
         airports_df,
-        lat="latitude", lon="longitude", #color=IAGOS_COLOR_HEX,
+        lat='latitude', lon='longitude', #color=IAGOS_COLOR_HEX,
         hover_name="long_name",
         hover_data={
              'nprofiles': True,
@@ -107,7 +107,7 @@ def get_airports_map(airports_df):
 
 
 def get_layout():
-    airports_df = footprint_data_access.get_iagos_airports(top=50).sort_values('long_name')
+    airports_df = footprint_data_access.get_iagos_airports(top=10).sort_values('long_name')
     # with open('/home/wolp/tmp/top50_airports.txt', mode='w') as f:
     #     f.writelines([f'{item}\n' for item in stations.short_name])
 

@@ -17,22 +17,22 @@ from utils import charts
 
 from log import log_exception, logger, log_callback
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
-    NEXT_TIME_BUTTON_ID, CURRENT_TIME_BY_AIRPORT_STORE_ID, \
+    NEXT_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
     CO_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_SELECT_ID, \
     airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
-
-
-footprint_data_dir = pathlib.Path('/home/wolp/data/fp_agg/CO_and_footprint_by_airport')
+from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
+    nprofiles_by_airport, get_CO_ts
 
 
 @functools.lru_cache(maxsize=128)
-def get_footprint_img(airport_code, layer, time_idx):
-    print(f'get_footprint_img({airport_code}, {layer}, {time_idx})')
-    res_time_per_km2, CO_ts, idx_by_i = get_residtime_COts_idx_by_airport(airport_code)
-    print(CO_ts['res_time_avail'].isel(i=time_idx).item())
-    if CO_ts['res_time_avail'].isel(i=time_idx):
-        da = res_time_per_km2.isel({'idx': idx_by_i[time_idx]}, drop=True).sel(layer=layer, drop=True).reset_coords(drop=True).load()
+def get_footprint_img(airport_code, layer, profile_idx):
+    print(f'get_footprint_img({airport_code}, {layer}, {profile_idx})')
+    flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
+    res_time_per_km2 = get_residence_time(flight_id, profile)
+    # print(CO_ts['res_time_avail'].isel(i=time_idx).item())
+    if res_time_per_km2 is not None:
+        da = res_time_per_km2.sel(layer=layer, drop=True).reset_coords(drop=True).load()
         print(da.sum().item())
         return footprint_viz.get_footprint_viz(da)
     else:
@@ -77,34 +77,33 @@ def foo123(map_click_data):
 
 
 @callback(
-    Output(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
+    Output(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(PREVIOUS_TIME_BUTTON_ID, 'n_clicks'),
     Input(NEXT_TIME_BUTTON_ID, 'n_clicks'),
     Input(CO_GRAPH_ID, 'clickData'),
-    State(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
+    State(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
 )
 @log_exception
-def update_current_time_by_airport(airport_code, previous_time_click, next_time_click, co_graph_click_data, current_time_idx_by_airport):
+def update_current_time_by_airport(airport_code, previous_time_click, next_time_click, co_graph_click_data, current_profile_idx_by_airport):
     dash_ctx = list(dash.ctx.triggered_prop_ids.values())
 
-    _, CO_ts, idx_by_i = get_residtime_COts_idx_by_airport(airport_code)
-
     if co_graph_click_data is not None and CO_GRAPH_ID in dash_ctx:
-        time_idx = co_graph_click_data['points'][0]['customdata']
+        # TODO: get profile_idx from customdata
+        profile_idx = co_graph_click_data['points'][0]['customdata']
     elif airport_code is not None:
-        time_idx, _ = current_time_idx_by_airport.get(airport_code, (0, np.datetime64('nat')))
+        profile_idx = current_profile_idx_by_airport.get(airport_code, 0)
     else:
         raise dash.exceptions.PreventUpdate
 
-    if PREVIOUS_TIME_BUTTON_ID in dash_ctx and time_idx > 0:
-        time_idx -= 1
-    if NEXT_TIME_BUTTON_ID in dash_ctx and time_idx < len(idx_by_i) - 1:
-        time_idx += 1
+    if PREVIOUS_TIME_BUTTON_ID in dash_ctx and profile_idx > 0:
+        profile_idx -= 1
+    if NEXT_TIME_BUTTON_ID in dash_ctx and profile_idx < nprofiles_by_airport[airport_code] - 1:
+        profile_idx += 1
 
-    curr_time = pd.Timestamp(CO_ts['time'].isel({'i': time_idx}).item())
-    current_time_idx_by_airport[airport_code] = time_idx, curr_time
-    return current_time_idx_by_airport
+    # curr_time = pd.Timestamp(CO_ts['time'].isel({'i': profile_idx}).item())
+    current_profile_idx_by_airport[airport_code] = profile_idx
+    return current_profile_idx_by_airport
 
 
 
@@ -152,21 +151,24 @@ def update_current_time_by_airport(airport_code, previous_time_click, next_time_
     Output(FOOTPRINT_MAP_GRAPH_ID, 'figure'),
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(VERTICAL_LAYER_RADIO_ID, 'value'),
-    Input(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
+    Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
     prevent_initial_call=True,
 )
 @log_exception
-def update_footprint_map(airport_code, vertical_layer, curent_time_idx_by_airport):
-    if curent_time_idx_by_airport is None:
+def update_footprint_map(airport_code, vertical_layer, curent_profile_by_airport):
+    if curent_profile_by_airport is None:
         raise dash.exceptions.PreventUpdate
     try:
-        time_idx, curr_time = curent_time_idx_by_airport[airport_code]
+        profile_idx = curent_profile_by_airport[airport_code]
     except KeyError:
         raise dash.exceptions.PreventUpdate
 
-    mapbox_layer = get_footprint_img(airport_code, vertical_layer, time_idx)
+    mapbox_layer = get_footprint_img(airport_code, vertical_layer, profile_idx)
 
     fig = Patch()
+
+    # TODO!!!
+    curr_time = '2000-01-01'
 
     title = f'Footprint with origin at {airport_name_by_code[airport_code]} ({airport_code}), ' \
             f'layer={vertical_layer}; time={pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}'
@@ -181,22 +183,22 @@ def update_footprint_map(airport_code, vertical_layer, curent_time_idx_by_airpor
     Input(VERTICAL_LAYER_RADIO_ID, 'value'),
     Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
     Input(EMISSION_REGION_SELECT_ID, 'value'),
-    Input(CURRENT_TIME_BY_AIRPORT_STORE_ID, 'data'),
+    Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
 )
 @log_exception
 def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, curent_time_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
 
-    _, CO_ts, _ = get_residtime_COts_idx_by_airport(airport_code)
+    CO_ts = get_CO_ts(airport_code)
     CO_ts = CO_ts.sel({'layer': vertical_layer, 'emission_inventory': emission_inventory, 'region': emission_region}, drop=True)
 
     # add NaN's between time epochs spaced > 4 days
     dtime_threshold = np.timedelta64(4, 'D')
     time = CO_ts['time'].reset_coords(drop=True)
-    dtime = time.diff('i').values
+    dtime = time.diff('profile_idx').values
     nan_idx, = np.nonzero(dtime > dtime_threshold)
 
-    CO_ts2 = CO_ts.swap_dims({'i': 'time'})
+    CO_ts2 = CO_ts.swap_dims({'profile_idx': 'time'})
 
     # stats = ['mean', 'min', 'max']
     # df = {
@@ -252,21 +254,27 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         }
     )
 
-    if curent_time_idx_by_airport is not None:
-        _, curr_time = curent_time_idx_by_airport.get(airport_code, (None, None))
-        if curr_time is not None:
-            fig['layout']['shapes'] = [
-                {
-                    'line': {'color': 'grey', 'width': 1, 'dash': 'dot'},
-                    'type': 'line',
-                    'x0': curr_time,
-                    'x1': curr_time,
-                    'xref': 'x',
-                    'y0': 0,
-                    'y1': 1 / 0.48,
-                    'yref': 'y domain',
-                }
-            ]
+    # if curent_time_idx_by_airport is not None:
+    #     _, curr_time = curent_time_idx_by_airport.get(airport_code, (None, None))
+    #     if curr_time is not None:
+    #         fig['layout']['shapes'] = [
+    #             {
+    #                 'line': {'color': 'grey', 'width': 1, 'dash': 'dot'},
+    #                 'type': 'line',
+    #                 'x0': curr_time,
+    #                 'x1': curr_time,
+    #                 'xref': 'x',
+    #                 'y0': 0,
+    #                 'y1': 1 / 0.48,
+    #                 'yref': 'y domain',
+    #             }
+    #         ]
+    # try:
+    #     profile_idx = curent_time_idx_by_airport[airport_code]
+    # except KeyError:
+    #     profile_idx = 0
+    #     #raise dash.exceptions.PreventUpdate
+    # flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
 
     # print(fig)
     return fig
