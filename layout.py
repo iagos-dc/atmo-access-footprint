@@ -33,8 +33,10 @@ CO_GRAPH_ID = 'CO_graph'
 
 GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
 
+DEFAULT_AIRPORT = 'FRA'
 
-airports_df = footprint_data_access.get_iagos_airports(top=10).sort_values('long_name')
+
+airports_df = footprint_data_access.get_iagos_airports(top=100).sort_values('long_name')
 airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))
 
 
@@ -107,10 +109,6 @@ def get_airports_map(airports_df):
 
 
 def get_layout():
-    airports_df = footprint_data_access.get_iagos_airports(top=10).sort_values('long_name')
-    # with open('/home/wolp/tmp/top50_airports.txt', mode='w') as f:
-    #     f.writelines([f'{item}\n' for item in stations.short_name])
-
     def get_form_item(label, input_component):
         form_item = dbc.Row([
             dbc.Label(label, width=4),
@@ -135,7 +133,7 @@ def get_layout():
             {'label': f'{long_name} ({short_name})', 'value': short_name}
             for short_name, long_name in airport_name_by_code.items()
         ],
-        value='FRA',
+        value=DEFAULT_AIRPORT,
     )
 
     vertical_layer_radio = dbc.RadioItems(

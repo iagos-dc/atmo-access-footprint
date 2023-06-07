@@ -44,10 +44,11 @@ def _insert_nan2(a, na, nan_idx, ni, idx):
 
 
 def insert_nan(a_, nan_idx, fill_value=None):
-    a = a_.values if isinstance(a_, pd.Series) else a_
     ni = len(nan_idx)
     if ni == 0:
-        return a
+        return a_
+
+    a = a_.values if isinstance(a_, pd.Series) else a_
 
     dtype_kind = a.dtype.kind
     if fill_value is None:

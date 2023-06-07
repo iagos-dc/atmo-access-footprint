@@ -22,52 +22,27 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
-    nprofiles_by_airport, get_CO_ts
+    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx
 
 
 @functools.lru_cache(maxsize=128)
 def get_footprint_img(airport_code, layer, profile_idx):
     print(f'get_footprint_img({airport_code}, {layer}, {profile_idx})')
     flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
-    res_time_per_km2 = get_residence_time(flight_id, profile)
-    # print(CO_ts['res_time_avail'].isel(i=time_idx).item())
+    res_time_per_km2 = get_residence_time(flight_id, profile, layer)
     if res_time_per_km2 is not None:
-        da = res_time_per_km2.sel(layer=layer, drop=True).reset_coords(drop=True).load()
-        print(da.sum().item())
+        da = res_time_per_km2.load()
+        # print(da.sum().item())
         return footprint_viz.get_footprint_viz(da)
     else:
         return None
-
-
-@functools.lru_cache(maxsize=None)
-def get_residtime_COts_idx_by_airport(code):
-    code = code.upper()
-    url = footprint_data_dir / f'{code}.zarr'
-    if not url.exists():
-        raise FileNotFoundError(str(url))
-    ds = xr.open_zarr(url)
-    print(f'{url} opened')
-
-    ds = ds.set_coords(['city', 'code', 'res_time_avail', 'state', 'time'])
-
-    # sort idx so that time is non-decreasing
-    perm = np.argsort(ds['time'].load().values)
-    ds = ds.assign_coords({'idx_by_i': ('i', perm)})
-    idx_by_i = ds['idx_by_i']
-    CO_ts = ds.drop_vars('res_time_per_km2').isel({'idx': idx_by_i}).load()
-    CO_ts['res_time_avail'] = CO_ts['res_time_avail'].astype('bool')
-
-    # get the heavy variable apart, without sorting
-    res_time_per_km2 = ds['res_time_per_km2']
-
-    return res_time_per_km2, CO_ts, idx_by_i
 
 
 @callback(
     Output(AIRPORT_SELECT_ID, 'value'),
     Input(FOOTPRINT_MAP_GRAPH_ID, 'clickData'),
 )
-def foo123(map_click_data):
+def update_airport_on_map_click(map_click_data):
     if map_click_data is not None and 'points' in map_click_data and len(map_click_data['points']) > 0:
         clicked_airport, = map_click_data['points']
         airport_code = airports_df.iloc[clicked_airport['pointIndex']]['short_name']
@@ -155,11 +130,11 @@ def update_current_time_by_airport(airport_code, previous_time_click, next_time_
     prevent_initial_call=True,
 )
 @log_exception
-def update_footprint_map(airport_code, vertical_layer, curent_profile_by_airport):
-    if curent_profile_by_airport is None:
+def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_airport):
+    if current_profile_idx_by_airport is None:
         raise dash.exceptions.PreventUpdate
     try:
-        profile_idx = curent_profile_by_airport[airport_code]
+        profile_idx = current_profile_idx_by_airport[airport_code]
     except KeyError:
         raise dash.exceptions.PreventUpdate
 
@@ -167,9 +142,7 @@ def update_footprint_map(airport_code, vertical_layer, curent_profile_by_airport
 
     fig = Patch()
 
-    # TODO!!!
-    curr_time = '2000-01-01'
-
+    curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
     title = f'Footprint with origin at {airport_name_by_code[airport_code]} ({airport_code}), ' \
             f'layer={vertical_layer}; time={pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}'
     fig['layout']['title'] = title
@@ -186,7 +159,7 @@ def update_footprint_map(airport_code, vertical_layer, curent_profile_by_airport
     Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
 )
 @log_exception
-def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, curent_time_idx_by_airport):
+def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, current_profile_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
 
     CO_ts = get_CO_ts(airport_code)
@@ -198,14 +171,9 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
     dtime = time.diff('profile_idx').values
     nan_idx, = np.nonzero(dtime > dtime_threshold)
 
-    CO_ts2 = CO_ts.swap_dims({'profile_idx': 'time'})
+    # print(nan_idx, type(nan_idx))
 
-    # stats = ['mean', 'min', 'max']
-    # df = {
-    #     'CO': {stat: helper.insert_nan(CO_ts2[f'CO_{stat}'].to_series(), nan_idx) for stat in stats}
-    # }
-    # for ei in emission_inventory:
-    #     df[ei] = {stat: helper.insert_nan(CO_ts2[f'CO_contrib_{stat}'].sel({'emission_inventory': ei}).to_series(), nan_idx) for stat in stats}
+    CO_ts2 = CO_ts.swap_dims({'profile_idx': 'time'})
     stat = 'mean'
     df = {
         'IAGOS': helper.insert_nan(CO_ts2[f'CO_{stat}'].to_series(), nan_idx)
@@ -221,8 +189,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
     fig.update_traces(
         # line={'width': 1},
         line={'width': 2},
-        # customdata=helper.insert_nan(np.arange(len(df['CO']['mean'])), nan_idx),
-        customdata=helper.insert_nan(np.arange(len(df['IAGOS'])), nan_idx),
+        customdata=helper.insert_nan(np.arange(len(CO_ts2['time'])), nan_idx),
     )
     fig.update_layout(
         # xaxis={
@@ -242,7 +209,6 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
                     f'emission regions={emission_region}</sup>',
         },
         uirevision=airport_code,
-        #uirevision=True,
     )
 
     fig.update_layout(
@@ -254,27 +220,22 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         }
     )
 
-    # if curent_time_idx_by_airport is not None:
-    #     _, curr_time = curent_time_idx_by_airport.get(airport_code, (None, None))
-    #     if curr_time is not None:
-    #         fig['layout']['shapes'] = [
-    #             {
-    #                 'line': {'color': 'grey', 'width': 1, 'dash': 'dot'},
-    #                 'type': 'line',
-    #                 'x0': curr_time,
-    #                 'x1': curr_time,
-    #                 'xref': 'x',
-    #                 'y0': 0,
-    #                 'y1': 1 / 0.48,
-    #                 'yref': 'y domain',
-    #             }
-    #         ]
-    # try:
-    #     profile_idx = curent_time_idx_by_airport[airport_code]
-    # except KeyError:
-    #     profile_idx = 0
-    #     #raise dash.exceptions.PreventUpdate
-    # flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
+    if current_profile_idx_by_airport is not None and airport_code in current_profile_idx_by_airport:
+        profile_idx = current_profile_idx_by_airport[airport_code]
+        curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
+        curr_time = pd.Timestamp(curr_time)
+        print(f'time={curr_time}')
+        fig['layout']['shapes'] = [
+            {
+                'line': {'color': 'grey', 'width': 1, 'dash': 'dot'},
+                'type': 'line',
+                'x0': curr_time,
+                'x1': curr_time,
+                'xref': 'x',
+                'y0': 0,
+                'y1': 1 / 0.48,
+                'yref': 'y domain',
+            }
+        ]
 
-    # print(fig)
     return fig

@@ -6,7 +6,7 @@ import xarray as xr
 
 
 _iagos_airports = None
-_fp_ds = None
+_fp_da = None
 _CO_ds = None
 
 CO_data_url = pathlib.Path('/home/wolp/data/fp_agg/CO_data.nc')
@@ -31,24 +31,12 @@ def _get_CO_data():
     if _CO_ds is None:
         # _CO_ds = xr.load_dataset(CO_data_url, engine='h5netcdf')  # TODO: uncomment
         _CO_ds = xr.open_dataset(CO_data_url, engine='h5netcdf')  # TODO: to be removed
-        _CO_ds = _CO_ds.sel({'flight_id': slice('2018', '2019')}).load()  # TODO: to be removed
+        _CO_ds = _CO_ds.sel({'flight_id': slice('2018', None)}).load()  # TODO: to be removed
         _CO_ds = _CO_ds.stack({'profile_idx': ('flight_id', 'profile')}, create_index=False)
         CO_filter = (_CO_ds['CO_count'] > 0).any('layer') & _valid_airport_code(_CO_ds['code'])
         _CO_ds = _CO_ds.sel({'profile_idx': CO_filter})
         _CO_ds = _CO_ds.assign_coords({'profile_idx': _CO_ds['profile_idx']})
     return _CO_ds
-
-
-def get_iagos_airports_old(top=None):
-    global _iagos_airports
-    if _iagos_airports is None:
-        ref = importlib.resources.files('footprint_data_access') / 'resources/iagos_airports.json'
-        with importlib.resources.as_file(ref) as url:
-            _iagos_airports = pd.read_json(url, orient='records')
-    if top is not None:
-        return _iagos_airports.nlargest(top, 'nprofiles')
-    else:
-        return _iagos_airports
 
 
 def get_iagos_airports(top=None):
@@ -72,20 +60,25 @@ def get_iagos_airports(top=None):
 
 
 @functools.lru_cache(maxsize=128)
-def get_residence_time(flight_id, profile):
-    global _fp_ds
-    if _fp_ds is None:
-        _fp_ds = xr.open_zarr(footprint_data_url)
+def get_residence_time(flight_id, profile, layer):
+    global _fp_da
+    if _fp_da is None:
+        _ds = xr.open_zarr(footprint_data_url)
+        _fp_da = _ds['res_time_per_km2']
     try:
-        da = _fp_ds.sel({'flight_id': flight_id, 'profile': profile})['res_time_per_km2']
+        da = _fp_da.sel({'flight_id': flight_id, 'profile': profile, 'layer': layer}, drop=True)
     except KeyError:
         da = None
     return da
 
 
+def get_coords_by_airport_and_profile_idx(aiport_code, profile_idx):
+    return _coords_by_airport[aiport_code][profile_idx]
+
+
 @functools.lru_cache(maxsize=128)
 def get_flight_id_and_profile_by_airport_and_profile_idx(aiport_code, profile_idx):
-    coords = _coords_by_airport[aiport_code][profile_idx]
+    coords = get_coords_by_airport_and_profile_idx(aiport_code, profile_idx)
     return coords['flight_id'].item(), coords['profile'].item()
     # pd.Timestamp(coords['time'].item())
 
