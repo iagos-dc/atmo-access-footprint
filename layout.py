@@ -109,7 +109,7 @@ def get_airports_map(airports_df):
     )
 
 
-def get_layout():
+def get_layout(title_bar):
     def get_form_item(label, input_component):
         form_item = dbc.Row([
             dbc.Label(label, width=4),
@@ -234,17 +234,15 @@ def get_layout():
 
     layout = html.Div(
         style={'margin': '20px'},
-        children=dbc.Container([
-            dbc.Row(dbc.Container(id='foo-container')),
-            dbc.Row([
-                dbc.Col([options_form, data_download_button], width=4),
-                dbc.Col([footprint_map, time_navigation_buttons], width=8),
-            ]),
-            dbc.Row([
-                ts_graph,
-                profile_graph,
-            ])
-        ], fluid=True)
+        children=dbc.Container(
+            dbc.Row(
+                [
+                    dbc.Col([title_bar, options_form, data_download_button, profile_graph], width=5),
+                    dbc.Col([footprint_map, time_navigation_buttons, ts_graph], width=7),
+                ],
+            ),
+            fluid=True,
+        )
     )
 
     return layout
