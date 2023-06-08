@@ -18,11 +18,11 @@ from utils import charts
 from log import log_exception, logger, log_callback
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
     NEXT_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
-    CO_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_SELECT_ID, \
+    CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_SELECT_ID, \
     airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
-    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx
+    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile
 
 
 @functools.lru_cache(maxsize=128)
@@ -176,13 +176,19 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
     CO_ts2 = CO_ts.swap_dims({'profile_idx': 'time'})
     stat = 'mean'
     df = {
-        'IAGOS': helper.insert_nan(CO_ts2[f'CO_{stat}'].to_series(), nan_idx)
+        'IAGOS': {
+            'L2': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 2).to_series(), nan_idx),
+            'L1': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 1).to_series(), nan_idx)
+        }
     }
+    if emission_inventory:
+        df['SOFT-IO'] = {}
     for ei in emission_inventory:
-        df[ei] = helper.insert_nan(CO_ts2[f'CO_contrib_{stat}'].sel({'emission_inventory': ei}).to_series(), nan_idx)
+        df['SOFT-IO'][ei] = helper.insert_nan(CO_ts2[f'CO_contrib_{stat}'].sel({'emission_inventory': ei}).to_series(), nan_idx)
 
     fig = charts.multi_line(
         df,
+        line_dash_style_by_sublabel={'GFAS': 'solid', 'CEDS2': 'dot', 'L2': 'solid', 'L1': 'dot'},
         # use_GL=False,
         # line_dash_style_by_sublabel={'mean': 'solid', 'min': 'dot', 'max': 'dash'}
     )
@@ -209,6 +215,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
                     f'emission regions={emission_region}</sup>',
         },
         uirevision=airport_code,
+        legend_groupclick='toggleitem', # enables toogling single items from group legend; see https://github.com/plotly/plotly.py/issues/3488
     )
 
     fig.update_layout(
@@ -216,7 +223,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
             'xaxis': {'domain': [0, 1]},
             'yaxis': {'domain': [0, 0.48]},
             'yaxis2': {'domain': [0.52, 1], 'overlaying': 'free'},
-            'yaxis3': {'domain': [0.52, 1], 'overlaying': 'y2'},
+            # 'yaxis3': {'domain': [0.52, 1], 'overlaying': 'y2'},
         }
     )
 
@@ -238,4 +245,63 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
             }
         ]
 
+    # print(fig)
+
     return fig
+
+
+@callback(
+    Output(PROFILE_GRAPH_ID, 'figure'),
+    Input(AIRPORT_SELECT_ID, 'value'),
+    Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
+    Input(EMISSION_REGION_SELECT_ID, 'value'),
+    Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
+)
+@log_exception
+def update_COprofile_fig(airport_code, emission_inventory, emission_region, current_profile_idx_by_airport):
+    emission_inventory = sorted(emission_inventory)
+
+    if current_profile_idx_by_airport is None or airport_code not in current_profile_idx_by_airport:
+        raise dash.exceptions.PreventUpdate
+
+    profile_idx = current_profile_idx_by_airport[airport_code]
+
+    print(f'get_COprofile({airport_code}, {profile_idx})')
+    flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
+    ds = get_COprofile(flight_id, profile)
+
+    scatter_plot = charts.plotly_scatter(
+        x=ds.COprofile_mean.values,
+        # x=ds.COprofile_contrib_mean.isel(emission_inventory=0, region=-1).values,
+        y=ds.height.values,
+    )
+    fig = go.Figure(scatter_plot)
+
+    curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
+    curr_time = pd.Timestamp(curr_time)
+    print(f'time={curr_time}')
+
+    fig.update_layout(
+        # xaxis={
+            # 'rangeslider': {'visible': True},
+            # 'type': 'date',
+        # },
+        # legend={
+        #     'orientation': 'v',
+        #     'yanchor': 'top',
+        #     'y': 1,
+        #     'xanchor': 'left',
+        #     'x': 1.05,
+        # },
+        title={
+            'text': f'Profile of CO measurements by IAGOS and CO contributions by SOFT-IO (ppb)'
+                    f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); time={curr_time}',
+                    # f'emission regions={emission_region}</sup>',
+        },
+        # uirevision=airport_code,
+        # legend_groupclick='toggleitem', # enables toogling single items from group legend; see https://github.com/plotly/plotly.py/issues/3488
+    )
+
+
+    return fig
+

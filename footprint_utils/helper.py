@@ -3,6 +3,23 @@ import pandas as pd
 import numba
 
 
+# barometric formula: https://en.wikipedia.org/wiki/Atmospheric_pressure#Altitude_variation
+p_0 = 101325 # Pa
+g = 9.80665 # m s-2
+c_p = 1004.68506 # J/(kg K)
+T_0 = 288.16 # K
+M = 0.02896968 # kg/mol
+R_0 = 8.314462618 # J/(mol K)
+
+
+def pressure_by_hasl(h):
+    return p_0 * (1 - g * h / (c_p * T_0)) ** (c_p * M / R_0)
+
+
+def hasl_by_pressure(p):
+    return (1 - (p / p_0) ** (R_0 / (c_p * M))) * c_p * T_0 / g
+
+
 @numba.njit
 def _insert_nan(a, na, nan_idx, ni, b):
     """

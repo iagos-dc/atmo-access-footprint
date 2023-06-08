@@ -3,15 +3,21 @@ import importlib.resources
 import pathlib
 import pandas as pd
 import xarray as xr
+from footprint_utils import helper
 
 
 _iagos_airports = None
 _fp_da = None
 _CO_ds = None
+_COprofile_ds = None
 
 CO_data_url = pathlib.Path('/home/wolp/data/fp_agg/CO_data.nc')
 COprofile_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_data.nc')
 footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id_2018.zarr/')
+
+
+_COprofile_ds = xr.open_dataset(COprofile_data_url, engine='h5netcdf')
+_COprofile_ds = _COprofile_ds.assign_coords({'height': helper.hasl_by_pressure(_COprofile_ds.air_press_AC)})
 
 
 def _valid_airport_code(code):
@@ -70,6 +76,15 @@ def get_residence_time(flight_id, profile, layer):
     except KeyError:
         da = None
     return da
+
+
+@functools.lru_cache(maxsize=128)
+def get_COprofile(flight_id, profile):
+    try:
+        profile_ds = _COprofile_ds.sel({'flight_id': flight_id, 'profile': profile}, drop=True)
+    except KeyError:
+        profile_ds = None
+    return profile_ds
 
 
 def get_coords_by_airport_and_profile_idx(aiport_code, profile_idx):

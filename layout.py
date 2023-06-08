@@ -30,6 +30,7 @@ PREVIOUS_TIME_BUTTON_ID = 'previous_time_button'
 NEXT_TIME_BUTTON_ID = 'next_time_button'
 FOOTPRINT_MAP_GRAPH_ID = 'footprint_map_graph'
 CO_GRAPH_ID = 'CO_graph'
+PROFILE_GRAPH_ID = 'profile_graph'
 
 GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
 
@@ -226,6 +227,11 @@ def get_layout():
         figure=go.Figure(),
     )
 
+    profile_graph = dcc.Graph(
+        id=PROFILE_GRAPH_ID,
+        figure=go.Figure(),
+    )
+
     layout = html.Div(
         style={'margin': '20px'},
         children=dbc.Container([
@@ -236,6 +242,7 @@ def get_layout():
             ]),
             dbc.Row([
                 ts_graph,
+                profile_graph,
             ])
         ], fluid=True)
     )
