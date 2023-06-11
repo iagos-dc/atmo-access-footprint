@@ -69,7 +69,7 @@ def insert_nan(a_, nan_idx, fill_value=None):
 
     dtype_kind = a.dtype.kind
     if fill_value is None:
-        if dtype_kind == 'f':
+        if dtype_kind == 'f' or dtype_kind == 'O':
             fill_value = np.nan
         elif dtype_kind == 'M':
             fill_value = np.datetime64('nat')
@@ -94,3 +94,9 @@ def insert_nan(a_, nan_idx, fill_value=None):
         return pd.Series(b, index=t)
     else:
         return b
+
+
+def insert_nan_into_timeseries_gaps(timeseries, gap=np.timedelta64(4, 'D'), fill_value=None):
+    dtime = timeseries.index.to_series().diff().values[1:]
+    nan_idx, = np.nonzero(dtime > gap)
+    return insert_nan(timeseries, nan_idx, fill_value=fill_value)

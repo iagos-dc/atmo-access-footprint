@@ -7,6 +7,35 @@ import plotly.express as px
 import footprint_data_access
 
 
+GRAPH_CONFIG = {
+    'autosizable': True,
+    'displayModeBar': True,
+    'doubleClick': 'autosize',
+    #'fillFrame': True,
+    #'editSelection': True,
+    #'editable': False,
+    'modeBarButtons': [['zoom2d', 'pan2d', 'zoomIn2d', 'zoomOut2d'], ['autoScale2d'], ['toImage']],
+    'edits': {
+        'titleText': True,
+        'axisTitleText': True,
+        'legendText': True,
+        'colorbarTitleText': True,
+    },
+    'toImageButtonOptions': {
+        'filename': 'foo',
+        'format': 'svg',
+        'height': 800,
+    },
+    'showAxisDragHandles': True,
+    'scrollZoom': True,
+    'showAxisRangeEntryBoxes': True,
+    'showTips': True,
+    'displaylogo': False,
+    'responsive': True,
+}  # for more see: help(dcc.Graph)
+
+
+
 IAGOS_COLOR_HEX = '#456096'
 IAGOS_AIRPORT_SIZE = 10
 MAPBOX_STYLES = {
@@ -37,7 +66,7 @@ GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', '
 DEFAULT_AIRPORT = 'FRA'
 
 
-airports_df = footprint_data_access.get_iagos_airports(top=100).sort_values('long_name')
+airports_df = footprint_data_access.get_iagos_airports(top=None).sort_values('long_name')
 airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))
 
 
@@ -181,13 +210,15 @@ def get_layout(title_bar):
         value='TOTAL',
     )
 
-    options_form = dbc.Form([
-        get_form_item('Airport', airport_selection),
-        get_form_item('Vertical layer', vertical_layer_radio),
-        get_form_item('Time', time_selection),
-        get_form_item('CO contribution (emission inventory)', emission_inventory_checklist),
-        get_form_item('CO contribution (emission region)', emission_region_selection),
-    ])
+    options_form = dbc.Form(
+        [
+            get_form_item('Airport', airport_selection),
+            get_form_item('Vertical layer', vertical_layer_radio),
+            get_form_item('Time', time_selection),
+            get_form_item('CO contribution (emission inventory)', emission_inventory_checklist),
+            get_form_item('CO contribution (emission region)', emission_region_selection),
+        ],
+    )
 
     footprint_map = get_airports_map(airports_df)
 
@@ -225,11 +256,13 @@ def get_layout(title_bar):
     ts_graph = dcc.Graph(
         id=CO_GRAPH_ID,
         figure=go.Figure(),
+        config=GRAPH_CONFIG,
     )
 
     profile_graph = dcc.Graph(
         id=PROFILE_GRAPH_ID,
         figure=go.Figure(),
+        config=GRAPH_CONFIG,
     )
 
     layout = html.Div(
@@ -237,7 +270,18 @@ def get_layout(title_bar):
         children=dbc.Container(
             dbc.Row(
                 [
-                    dbc.Col([title_bar, options_form, data_download_button, profile_graph], width=5),
+                    dbc.Col(
+                        [
+                            title_bar,
+                            dbc.Card([
+                                dbc.CardHeader('Options: '),
+                                dbc.CardBody(options_form),
+                                dbc.CardFooter(data_download_button)
+                            ]),
+                            profile_graph,
+                        ],
+                        width=5
+                    ),
                     dbc.Col([footprint_map, time_navigation_buttons, ts_graph], width=7),
                 ],
             ),

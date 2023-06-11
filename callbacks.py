@@ -175,16 +175,15 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     CO_ts2 = CO_ts.swap_dims({'profile_idx': 'time'})
     stat = 'mean'
-    df = {
-        'IAGOS': {
-            'L2': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 2).to_series(), nan_idx),
-            'L1': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 1).to_series(), nan_idx)
-        }
-    }
+    df = {}
     if emission_inventory:
         df['SOFT-IO'] = {}
     for ei in emission_inventory:
         df['SOFT-IO'][ei] = helper.insert_nan(CO_ts2[f'CO_contrib_{stat}'].sel({'emission_inventory': ei}).to_series(), nan_idx)
+    df['IAGOS'] = {
+        'L2': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 2).to_series(), nan_idx),
+        'L1': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 1).to_series(), nan_idx),
+    }
 
     fig = charts.multi_line(
         df,

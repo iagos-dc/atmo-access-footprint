@@ -18,8 +18,21 @@ IAGOS_LOGO_FILENAME = 'iagos_logo.png'
 def get_dashboard_layout(app):
     # logo and application title
     title_and_logo_bar = html.Div(
-        style={'display': 'flex', 'justify-content': 'space-between', 'margin-bottom': '20px'},
+        style={
+            'display': 'flex',
+            'justify-content': 'space-between',
+            'margin-bottom': '20px',
+        },
         children=[
+            html.Div(children=[
+                html.A(
+                    html.Img(
+                        src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
+                        style={'float': 'left', 'height': '80px', 'margin-top': '0px'}
+                    ),
+                    href="https://www.atmo-access.eu/",
+                ),
+            ]),
             html.Div(
                 children=[
                     html.H3('FLEXPART footprints and SOFT-IO CO contribution viewer', style={'font-weight': 'bold'}),
@@ -27,15 +40,6 @@ def get_dashboard_layout(app):
                 ],
                 style={'text-align': 'center'},
             ),
-            html.Div(children=[
-                html.A(
-                    html.Img(
-                        src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
-                        style={'float': 'right', 'height': '70px', 'margin-top': '10px'}
-                    ),
-                    href="https://www.atmo-access.eu/",
-                ),
-            ]),
         ]
     )
 

@@ -13,7 +13,8 @@ _COprofile_ds = None
 
 CO_data_url = pathlib.Path('/home/wolp/data/fp_agg/CO_data.nc')
 COprofile_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_data.nc')
-footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id_2018.zarr/')
+footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id.zarr/')
+# footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id_2018.zarr/')
 
 
 _COprofile_ds = xr.open_dataset(COprofile_data_url, engine='h5netcdf')
@@ -35,9 +36,9 @@ def _valid_airport_code(code):
 def _get_CO_data():
     global _CO_ds
     if _CO_ds is None:
-        # _CO_ds = xr.load_dataset(CO_data_url, engine='h5netcdf')  # TODO: uncomment
-        _CO_ds = xr.open_dataset(CO_data_url, engine='h5netcdf')  # TODO: to be removed
-        _CO_ds = _CO_ds.sel({'flight_id': slice('2018', None)}).load()  # TODO: to be removed
+        _CO_ds = xr.load_dataset(CO_data_url, engine='h5netcdf')  # TODO: uncomment
+        # _CO_ds = xr.open_dataset(CO_data_url, engine='h5netcdf')  # TODO: to be removed
+        # _CO_ds = _CO_ds.sel({'flight_id': slice('2018', None)}).load()  # TODO: to be removed
         _CO_ds = _CO_ds.stack({'profile_idx': ('flight_id', 'profile')}, create_index=False)
         CO_filter = (_CO_ds['CO_count'] > 0).any('layer') & _valid_airport_code(_CO_ds['code'])
         _CO_ds = _CO_ds.sel({'profile_idx': CO_filter})

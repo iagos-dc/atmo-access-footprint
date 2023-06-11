@@ -27,7 +27,8 @@ def trim_small_values(da, threshold=0.01, check_if_lon_lat_increasing=False):
         da_filtered = da.where(da >= da.max() * threshold, drop=True)
         # BUG: lon2, lat2 are 0 size arrays if da has nan's only
         lon2, lat2 = da_filtered[lon], da_filtered[lat]
-        da = da.sel({lon: slice(lon2[0], lon2[-1]), lat: slice(lat2[0], lat2[-1])})
+        if len(lon2) >= 1 and len(lat2) >= 1:
+            da = da.sel({lon: slice(lon2[0], lon2[-1]), lat: slice(lat2[0], lat2[-1])})
 
     if threshold is None:
         threshold = 0
