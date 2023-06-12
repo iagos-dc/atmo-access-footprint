@@ -1,6 +1,7 @@
 import functools
 import importlib.resources
 import pathlib
+import numpy as np
 import pandas as pd
 import xarray as xr
 from footprint_utils import helper
@@ -16,9 +17,23 @@ COprofile_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_data.nc')
 footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id.zarr/')
 # footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id_2018.zarr/')
 
+COprofile_climat_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_climat_data.nc')
+
 
 _COprofile_ds = xr.open_dataset(COprofile_data_url, engine='h5netcdf')
 _COprofile_ds = _COprofile_ds.assign_coords({'height': helper.hasl_by_pressure(_COprofile_ds.air_press_AC)})
+
+
+# TODO: put it into a routine
+_COprofile_climat_ds = xr.load_dataset(COprofile_climat_data_url, engine='h5netcdf')
+_idx = pd.MultiIndex.from_arrays([_COprofile_climat_ds['code'].values, _COprofile_climat_ds['year'].values], names=['code', 'year'])
+_COprofile_climat_ds = _COprofile_climat_ds.assign_coords({'code_year': _idx}).unstack('code_year').sortby('year')
+_clim_5y_mean_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).mean()
+_clim_5y_var_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).var()
+_clim_5y_ds = xr.Dataset({
+    'CO_mean_5y': _clim_5y_mean_ds['CO_mean'],
+    'CO_std_5y': np.sqrt(_clim_5y_mean_ds['CO_var'] + _clim_5y_var_ds['CO_mean'])
+})
 
 
 def _valid_airport_code(code):
@@ -82,7 +97,7 @@ def get_residence_time(flight_id, profile, layer):
 @functools.lru_cache(maxsize=128)
 def get_COprofile(flight_id, profile):
     try:
-        profile_ds = _COprofile_ds.sel({'flight_id': flight_id, 'profile': profile}, drop=True)
+        profile_ds = _COprofile_ds.sel({'flight_id': flight_id, 'profile': profile}).load()
     except KeyError:
         profile_ds = None
     return profile_ds

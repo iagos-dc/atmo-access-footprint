@@ -168,13 +168,19 @@ def get_layout(title_bar):
 
     vertical_layer_radio = dbc.RadioItems(
         id=VERTICAL_LAYER_RADIO_ID,
+        # options=[
+        #     {'label': 'Lower troposphere (< 3km)', 'value': 'LT'},
+        #     {'label': 'Free troposphere (3km - 8km)', 'value': 'FT'},
+        #     {'label': 'Upper troposphere (> 8km)', 'value': 'UT'},
+        # ],
         options=[
-            {'label': 'Lower troposphere (< 3km)', 'value': 'LT'},
-            {'label': 'Free troposphere (3km - 8km)', 'value': 'FT'},
-            {'label': 'Upper troposphere (> 8km)', 'value': 'UT'},
+            {'label': 'LT (< 3km)', 'value': 'LT'},
+            {'label': 'FT (3km - 8km)', 'value': 'FT'},
+            {'label': 'UT (> 8km)', 'value': 'UT'},
         ],
         value='LT',
-        inline=False
+        # inline=False,
+        inline=True,
     )
 
     time_selection = dbc.Select(
@@ -214,7 +220,7 @@ def get_layout(title_bar):
         [
             get_form_item('Airport', airport_selection),
             get_form_item('Vertical layer', vertical_layer_radio),
-            get_form_item('Time', time_selection),
+            # get_form_item('Time', time_selection),
             get_form_item('CO contribution (emission inventory)', emission_inventory_checklist),
             get_form_item('CO contribution (emission region)', emission_region_selection),
         ],

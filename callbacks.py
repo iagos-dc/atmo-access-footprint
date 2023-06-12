@@ -9,8 +9,8 @@ import dash
 from dash import Output, Input, State, Patch, callback
 
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
-import plotly.express as px
 
 sys.path.append('/home/wolp/PycharmProjects/atmo-access-time-series2')
 from utils import charts
@@ -22,7 +22,10 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
-    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile
+    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, _clim_5y_ds
+
+
+USE_GL = 500
 
 
 @functools.lru_cache(maxsize=128)
@@ -161,71 +164,138 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
 @log_exception
 def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, current_profile_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
+    if emission_region != 'TOTAL':
+        emission_region = [emission_region, 'TOTAL']
+    else:
+        emission_region = ['TOTAL']
 
     CO_ts = get_CO_ts(airport_code)
-    CO_ts = CO_ts.sel({'layer': vertical_layer, 'emission_inventory': emission_inventory, 'region': emission_region}, drop=True)
+    CO_ts = CO_ts\
+        .sel({'layer': vertical_layer, 'emission_inventory': emission_inventory, 'region': emission_region}, drop=True)\
+        .assign_coords(customdata=('profile_idx', np.arange(len(CO_ts['profile_idx'])))) \
+        .swap_dims({'profile_idx': 'time'})
 
-    # add NaN's between time epochs spaced > 4 days
-    dtime_threshold = np.timedelta64(4, 'D')
-    time = CO_ts['time'].reset_coords(drop=True)
-    dtime = time.diff('profile_idx').values
-    nan_idx, = np.nonzero(dtime > dtime_threshold)
+    CO_ser = {}
+    for lvl in [2, 1]:
+        _CO_da = CO_ts['CO_mean'].where(CO_ts['CO_processing_level'] == lvl, drop=True)
+        CO_ser[lvl] = (
+            helper.insert_nan_into_timeseries_gaps(_CO_da.to_series()),
+            helper.insert_nan_into_timeseries_gaps(_CO_da['customdata'].to_series())
+        )
 
-    # print(nan_idx, type(nan_idx))
-
-    CO_ts2 = CO_ts.swap_dims({'profile_idx': 'time'})
-    stat = 'mean'
-    df = {}
-    if emission_inventory:
-        df['SOFT-IO'] = {}
+    SOFTIO_ser = {}
     for ei in emission_inventory:
-        df['SOFT-IO'][ei] = helper.insert_nan(CO_ts2[f'CO_contrib_{stat}'].sel({'emission_inventory': ei}).to_series(), nan_idx)
-    df['IAGOS'] = {
-        'L2': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 2).to_series(), nan_idx),
-        'L1': helper.insert_nan(CO_ts2[f'CO_{stat}'].where(CO_ts2['CO_processing_level'] == 1).to_series(), nan_idx),
-    }
+        for reg in emission_region:
+            _SOFTIO_da = CO_ts['CO_contrib_mean'].sel({'emission_inventory': ei, 'region': reg}, drop=True)
+            SOFTIO_ser.setdefault(ei, {})[reg] = (
+                helper.insert_nan_into_timeseries_gaps(_SOFTIO_da.to_series()),
+                helper.insert_nan_into_timeseries_gaps(_SOFTIO_da['customdata'].to_series())
+            )
 
-    fig = charts.multi_line(
-        df,
-        line_dash_style_by_sublabel={'GFAS': 'solid', 'CEDS2': 'dot', 'L2': 'solid', 'L1': 'dot'},
-        # use_GL=False,
-        # line_dash_style_by_sublabel={'mean': 'solid', 'min': 'dot', 'max': 'dash'}
+    nrows = 2 if len(SOFTIO_ser) > 0 else 1
+    fig = make_subplots(rows=nrows, cols=1, shared_xaxes=True, vertical_spacing=0.02) #vertical_spacing=0.3)
+
+    # add traces with IAGOS CO
+    for lvl, (ser, customdata) in CO_ser.items():
+        if lvl == 2:
+            color = 'rgba(0, 0, 0, 1)'
+        else:
+            color = 'rgba(100, 100, 100, 1)'
+
+        if USE_GL and len(ser) > USE_GL:
+            go_scatter = go.Scattergl
+        else:
+            go_scatter = go.Scatter
+
+        trace = go_scatter(
+            x=ser.index.values,
+            y=ser.values,
+            customdata=customdata.values,
+            mode='lines+markers',
+            name=f'L{lvl}',
+            legendgroup='IAGOS',
+            legendgrouptitle_text='IAGOS',
+            marker={'color': color},
+            line={'color': color},
+        )
+
+        fig.add_trace(trace, row=1, col=1)
+
+    # add traces with SOFT-IO
+    for ei in emission_inventory:
+        for reg in emission_region:
+            ser, customdata = SOFTIO_ser[ei][reg]
+
+            if USE_GL and len(ser) > USE_GL:
+                go_scatter = go.Scattergl
+            else:
+                go_scatter = go.Scatter
+
+            trace = go_scatter(
+                x=ser.index.values,
+                y=ser.values,
+                customdata=customdata.values,
+                mode='lines+markers',
+                name=f'{ei} {reg}',
+                legendgroup='SOFT-IO',
+                legendgrouptitle_text='SOFT-IO',
+                #mode='lines',
+                #marker={'color': color},
+                #line={'color': color},
+            )
+
+            fig.add_trace(trace, row=2, col=1)
+
+    if len(emission_inventory) > 1:
+        emission_inventory_it = iter(emission_inventory)
+        ei = next(emission_inventory_it)
+        ser, customdata = SOFTIO_ser[ei]['TOTAL']
+        print('customdata', customdata)
+        for ei in emission_inventory_it:
+            ser2, customdata2 = SOFTIO_ser[ei]['TOTAL']
+            ser = ser + ser2
+            customdata.update(customdata2)
+            print('customdata2', customdata)
+
+        if USE_GL and len(ser) > USE_GL:
+            go_scatter = go.Scattergl
+        else:
+            go_scatter = go.Scatter
+
+        trace = go_scatter(
+            x=ser.index.values,
+            y=ser.values,
+            customdata=customdata.values,
+            mode='lines+markers',
+            name=f'{"+".join(emission_inventory)} TOTAL',
+            legendgroup='SOFT-IO',
+            legendgrouptitle_text='SOFT-IO',
+            # mode='lines',
+            # marker={'color': color},
+            # line={'color': color},
+        )
+
+        fig.add_trace(trace, row=2, col=1)
+
+    # fig.update_xaxes({'rangeslider': {'visible': True}, 'type': 'date'}, row=1)
+    fig.update_xaxes(title='time', row=nrows)
+    fig.update_yaxes(
+        {
+            'title': 'ppb',
+        }
     )
-    fig.update_traces(
-        # line={'width': 1},
-        line={'width': 2},
-        customdata=helper.insert_nan(np.arange(len(CO_ts2['time'])), nan_idx),
-    )
+
     fig.update_layout(
-        # xaxis={
-            # 'rangeslider': {'visible': True},
-            # 'type': 'date',
-        # },
-        legend={
-            'orientation': 'v',
-            'yanchor': 'top',
-            'y': 1,
-            'xanchor': 'left',
-            'x': 1.05,
-        },
         title={
             'text': f'CO measurements by IAGOS and CO contributions by SOFT-IO (ppb)'
                     f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); layer={vertical_layer}; '
                     f'emission regions={emission_region}</sup>',
         },
         uirevision=airport_code,
-        legend_groupclick='toggleitem', # enables toogling single items from group legend; see https://github.com/plotly/plotly.py/issues/3488
+        legend_groupclick='toggleitem',
     )
 
-    fig.update_layout(
-        {
-            'xaxis': {'domain': [0, 1]},
-            'yaxis': {'domain': [0, 0.48]},
-            'yaxis2': {'domain': [0.52, 1], 'overlaying': 'free'},
-            # 'yaxis3': {'domain': [0.52, 1], 'overlaying': 'y2'},
-        }
-    )
-
+    # draw vertical bar indicating a current time
     if current_profile_idx_by_airport is not None and airport_code in current_profile_idx_by_airport:
         profile_idx = current_profile_idx_by_airport[airport_code]
         curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
@@ -239,8 +309,8 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
                 'x1': curr_time,
                 'xref': 'x',
                 'y0': 0,
-                'y1': 1 / 0.48,
-                'yref': 'y domain',
+                'y1': 1,
+                'yref': 'paper',
             }
         ]
 
@@ -259,6 +329,10 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 @log_exception
 def update_COprofile_fig(airport_code, emission_inventory, emission_region, current_profile_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
+    if emission_region != 'TOTAL':
+        emission_region = [emission_region, 'TOTAL']
+    else:
+        emission_region = ['TOTAL']
 
     if current_profile_idx_by_airport is None or airport_code not in current_profile_idx_by_airport:
         raise dash.exceptions.PreventUpdate
@@ -267,14 +341,113 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
 
     print(f'get_COprofile({airport_code}, {profile_idx})')
     flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
-    ds = get_COprofile(flight_id, profile)
+    CO_profile_ds = get_COprofile(flight_id, profile)
 
-    scatter_plot = charts.plotly_scatter(
-        x=ds.COprofile_mean.values,
-        # x=ds.COprofile_contrib_mean.isel(emission_inventory=0, region=-1).values,
-        y=ds.height.values,
+    # prepare data for IAGOS CO profile
+    CO_profile_ds = CO_profile_ds.coarsen({'air_press_AC': 3}).mean()
+    lvl = CO_profile_ds['CO_processing_level'].item()
+    # and build the trace
+    color = 'rgba(0, 0, 0, 1)' if lvl == 2 else 'rgba(100, 100, 100, 1)'
+    COprofile_trace = go.Scatter(
+        x=CO_profile_ds['COprofile_mean'].values,
+        y=CO_profile_ds['height'].values,
+        mode='lines+markers',
+        name=f'L{lvl}',
+        legendgroup='IAGOS',
+        legendgrouptitle_text='IAGOS',
+        marker={'color': color},
+        line={'color': color},
     )
-    fig = go.Figure(scatter_plot)
+
+    # prepare data for IAGOS CO 5y mean and std
+    year = np.datetime64(str(CO_profile_ds['time'].dt.year.item()))
+    clim_ds = _clim_5y_ds.sel({'code': airport_code, 'year': year})
+    clim_ds = clim_ds.coarsen({'air_press_AC': 3}).mean()
+    # and build the trace
+    COclimat_trace = go.Scatter(
+        x=clim_ds.CO_mean_5y.values,
+        y=clim_ds.height.values,
+        # error_x=go.scatter.ErrorX(array=_ds.CO_std_5y.values, symmetric=True, type='data'),
+        mode='lines',
+        name=f'5y mean',
+        legendgroup='IAGOS',
+        legendgrouptitle_text='IAGOS',
+        # marker={'color': color},
+        line={'color': 'black', 'dash': 'dot'},
+    )
+    COclimat_trace_1 = go.Scatter(
+        x=clim_ds.CO_mean_5y.values - clim_ds.CO_std_5y.values,
+        y=clim_ds.height.values,
+        mode='lines',
+        line=dict(width=0),
+        name=f'5y std 1',
+        # legendgroup='IAGOS',
+        # legendgrouptitle_text='IAGOS',
+        showlegend=False,
+        # marker={'color': color},
+        # line={'color': color},
+    )
+    COclimat_trace_2 = go.Scatter(
+        x=clim_ds.CO_mean_5y.values + clim_ds.CO_std_5y.values,
+        y=clim_ds.height.values,
+        mode='lines',
+        line=dict(width=0),
+        name=f'5y std',
+        legendgroup='IAGOS',
+        legendgrouptitle_text='IAGOS',
+        # showlegend=False,
+        fillcolor='rgba(68, 68, 68, 0.3)',
+        fill='tonexty',  # marker={'color': color},
+        # line={'color': color},
+    )
+
+    # prepare data and traces for SOFT-IO
+    softio_traces = []
+    for ei in emission_inventory:
+        for reg in emission_region:
+            vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': reg}).values
+            trace = go.Scatter(
+                x=vals,
+                y=CO_profile_ds['height'].values,
+                mode='lines+markers',
+                name=f'{ei} {reg}',
+                legendgroup='SOFT-IO',
+                legendgrouptitle_text='SOFT-IO',
+                # mode='lines',
+                # marker={'color': color},
+                # line={'color': color},
+            )
+            softio_traces.append(trace)
+    if len(emission_inventory) > 1:
+        emission_inventory_it = iter(emission_inventory)
+        ei = next(emission_inventory_it)
+        vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
+        for ei in emission_inventory_it:
+            vals2 = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
+            vals = vals + vals2
+        trace = go.Scatter(
+            x=vals,
+            y=CO_profile_ds['height'].values,
+            mode='lines+markers',
+            name=f'{"+".join(emission_inventory)} TOTAL',
+            legendgroup='SOFT-IO',
+            legendgrouptitle_text='SOFT-IO',
+            # mode='lines',
+            # marker={'color': color},
+            # line={'color': color},
+        )
+        softio_traces.append(trace)
+
+    # build figure
+    fig = go.Figure([COprofile_trace, COclimat_trace, COclimat_trace_1, COclimat_trace_2] + softio_traces)
+    fig.update_xaxes(title='CO (ppb)')
+    fig.update_yaxes(title='height (m asl)')
+    fig.update_layout(
+        # width=400,
+        height=600,
+        legend_groupclick='toggleitem',
+        showlegend=True,
+    )
 
     curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
     curr_time = pd.Timestamp(curr_time)
@@ -300,7 +473,6 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         # uirevision=airport_code,
         # legend_groupclick='toggleitem', # enables toogling single items from group legend; see https://github.com/plotly/plotly.py/issues/3488
     )
-
 
     return fig
 
