@@ -9,31 +9,15 @@ from footprint_utils import helper
 
 _iagos_airports = None
 _fp_da = None
-_CO_ds = None
-_COprofile_ds = None
 
 CO_data_url = pathlib.Path('/home/wolp/data/fp_agg/CO_data.nc')
 COprofile_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_data.nc')
-footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id.zarr/')
-# footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id_2018.zarr/')
-
 COprofile_climat_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_climat_data.nc')
+footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id.zarr/')
 
 
 _COprofile_ds = xr.open_dataset(COprofile_data_url, engine='h5netcdf')
 _COprofile_ds = _COprofile_ds.assign_coords({'height': helper.hasl_by_pressure(_COprofile_ds.air_press_AC)})
-
-
-# TODO: put it into a routine
-_COprofile_climat_ds = xr.load_dataset(COprofile_climat_data_url, engine='h5netcdf')
-_idx = pd.MultiIndex.from_arrays([_COprofile_climat_ds['code'].values, _COprofile_climat_ds['year'].values], names=['code', 'year'])
-_COprofile_climat_ds = _COprofile_climat_ds.assign_coords({'code_year': _idx}).unstack('code_year').sortby('year')
-_clim_5y_mean_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).mean()
-_clim_5y_var_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).var()
-_clim_5y_ds = xr.Dataset({
-    'CO_mean_5y': _clim_5y_mean_ds['CO_mean'],
-    'CO_std_5y': np.sqrt(_clim_5y_mean_ds['CO_var'] + _clim_5y_var_ds['CO_mean'])
-})
 
 
 def _valid_airport_code(code):
@@ -48,16 +32,13 @@ def _valid_airport_code(code):
     return valid_code
 
 
+@functools.lru_cache
 def _get_CO_data():
-    global _CO_ds
-    if _CO_ds is None:
-        _CO_ds = xr.load_dataset(CO_data_url, engine='h5netcdf')  # TODO: uncomment
-        # _CO_ds = xr.open_dataset(CO_data_url, engine='h5netcdf')  # TODO: to be removed
-        # _CO_ds = _CO_ds.sel({'flight_id': slice('2018', None)}).load()  # TODO: to be removed
-        _CO_ds = _CO_ds.stack({'profile_idx': ('flight_id', 'profile')}, create_index=False)
-        CO_filter = (_CO_ds['CO_count'] > 0).any('layer') & _valid_airport_code(_CO_ds['code'])
-        _CO_ds = _CO_ds.sel({'profile_idx': CO_filter})
-        _CO_ds = _CO_ds.assign_coords({'profile_idx': _CO_ds['profile_idx']})
+    _CO_ds = xr.load_dataset(CO_data_url, engine='h5netcdf')
+    _CO_ds = _CO_ds.stack({'profile_idx': ('flight_id', 'profile')}, create_index=False)
+    CO_filter = (_CO_ds['CO_count'] > 0).any('layer') & _valid_airport_code(_CO_ds['code'])
+    _CO_ds = _CO_ds.sel({'profile_idx': CO_filter})
+    _CO_ds = _CO_ds.assign_coords({'profile_idx': _CO_ds['profile_idx']})
     return _CO_ds
 
 
@@ -101,6 +82,19 @@ def get_COprofile(flight_id, profile):
     except KeyError:
         profile_ds = None
     return profile_ds
+
+
+@functools.lru_cache
+def get_COprofile_climatology():
+    print('get_COprofile_climatology()...')
+    _COprofile_climat_ds = xr.load_dataset(COprofile_climat_data_url, engine='h5netcdf')
+    _clim_5y_mean_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).mean()
+    _clim_5y_var_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).var()
+    print('get_COprofile_climatology()...done')
+    return xr.Dataset({
+        'CO_mean_5y': _clim_5y_mean_ds['CO_mean'],
+        'CO_std_5y': np.sqrt(_clim_5y_mean_ds['CO_var'] + _clim_5y_var_ds['CO_mean'])
+    })
 
 
 def get_coords_by_airport_and_profile_idx(aiport_code, profile_idx):

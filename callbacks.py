@@ -22,7 +22,7 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
-    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, _clim_5y_ds
+    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
 
 
 USE_GL = 500
@@ -146,7 +146,7 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
     fig = Patch()
 
     curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
-    title = f'Footprint with origin at {airport_name_by_code[airport_code]} ({airport_code}), ' \
+    title = f'10-day backward footprint with origin at {airport_name_by_code[airport_code]} ({airport_code}), ' \
             f'layer={vertical_layer}; time={pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}'
     fig['layout']['title'] = title
     fig['layout']['mapbox']['layers'] = [mapbox_layer]
@@ -287,7 +287,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     fig.update_layout(
         title={
-            'text': f'CO measurements by IAGOS and CO contributions by SOFT-IO (ppb)'
+            'text': f'CO measurements by IAGOS and modeled CO contributions by SOFT-IO (ppb)'
                     f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); layer={vertical_layer}; '
                     f'emission regions={emission_region}</sup>',
         },
@@ -348,9 +348,12 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
     lvl = CO_profile_ds['CO_processing_level'].item()
     # and build the trace
     color = 'rgba(0, 0, 0, 1)' if lvl == 2 else 'rgba(100, 100, 100, 1)'
+    x_vals = CO_profile_ds['COprofile_mean'].values
+    y_vals = CO_profile_ds['height'].values
+    x_max_1 = np.nanmax(x_vals) if len(x_vals) > 0 else np.nan
     COprofile_trace = go.Scatter(
-        x=CO_profile_ds['COprofile_mean'].values,
-        y=CO_profile_ds['height'].values,
+        x=x_vals,
+        y=y_vals,
         mode='lines+markers',
         name=f'L{lvl}',
         legendgroup='IAGOS',
@@ -361,12 +364,13 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
 
     # prepare data for IAGOS CO 5y mean and std
     year = np.datetime64(str(CO_profile_ds['time'].dt.year.item()))
-    clim_ds = _clim_5y_ds.sel({'code': airport_code, 'year': year})
+    clim_ds = get_COprofile_climatology().sel({'code': airport_code, 'year': year})
     clim_ds = clim_ds.coarsen({'air_press_AC': 3}).mean()
     # and build the trace
+    y_vals = clim_ds['height'].values
     COclimat_trace = go.Scatter(
-        x=clim_ds.CO_mean_5y.values,
-        y=clim_ds.height.values,
+        x=clim_ds['CO_mean_5y'].values,
+        y=y_vals,
         # error_x=go.scatter.ErrorX(array=_ds.CO_std_5y.values, symmetric=True, type='data'),
         mode='lines',
         name=f'5y mean',
@@ -376,8 +380,8 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         line={'color': 'black', 'dash': 'dot'},
     )
     COclimat_trace_1 = go.Scatter(
-        x=clim_ds.CO_mean_5y.values - clim_ds.CO_std_5y.values,
-        y=clim_ds.height.values,
+        x=clim_ds['CO_mean_5y'].values - clim_ds['CO_std_5y'].values,
+        y=y_vals,
         mode='lines',
         line=dict(width=0),
         name=f'5y std 1',
@@ -387,9 +391,11 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         # marker={'color': color},
         # line={'color': color},
     )
+    x_vals = clim_ds['CO_mean_5y'].values + clim_ds['CO_std_5y'].values
+    x_max_2 = np.nanmax(x_vals) if len(x_vals) > 0 else np.nan
     COclimat_trace_2 = go.Scatter(
-        x=clim_ds.CO_mean_5y.values + clim_ds.CO_std_5y.values,
-        y=clim_ds.height.values,
+        x=x_vals,
+        y=y_vals,
         mode='lines',
         line=dict(width=0),
         name=f'5y std',
@@ -402,12 +408,15 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
     )
 
     # prepare data and traces for SOFT-IO
+    x_max_softio = []
     softio_traces = []
     for ei in emission_inventory:
         for reg in emission_region:
-            vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': reg}).values
+            x_vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': reg}).values
+            if len(x_vals) > 0:
+                x_max_softio.append(np.nanmax(x_vals))
             trace = go.Scatter(
-                x=vals,
+                x=x_vals,
                 y=CO_profile_ds['height'].values,
                 mode='lines+markers',
                 name=f'{ei} {reg}',
@@ -421,12 +430,14 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
     if len(emission_inventory) > 1:
         emission_inventory_it = iter(emission_inventory)
         ei = next(emission_inventory_it)
-        vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
+        x_vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
         for ei in emission_inventory_it:
-            vals2 = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
-            vals = vals + vals2
+            x_vals2 = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
+            x_vals = x_vals + x_vals2
+        if len(x_vals) > 0:
+            x_max_softio.append(np.nanmax(x_vals))
         trace = go.Scatter(
-            x=vals,
+            x=x_vals,
             y=CO_profile_ds['height'].values,
             mode='lines+markers',
             name=f'{"+".join(emission_inventory)} TOTAL',
@@ -438,10 +449,12 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         )
         softio_traces.append(trace)
 
+    x_max = np.nanmax([50, x_max_1, x_max_2] + x_max_softio)
+
     # build figure
     fig = go.Figure([COprofile_trace, COclimat_trace, COclimat_trace_1, COclimat_trace_2] + softio_traces)
-    fig.update_xaxes(title='CO (ppb)')
-    fig.update_yaxes(title='height (m asl)')
+    fig.update_xaxes(title='CO (ppb)', range=[-x_max * 0.02, x_max * 1.02], fixedrange=True)
+    fig.update_yaxes(title='altitude (m a.s.l.)', range=[-100, 12e3], fixedrange=True)
     fig.update_layout(
         # width=400,
         height=600,
@@ -466,7 +479,7 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         #     'x': 1.05,
         # },
         title={
-            'text': f'Profile of CO measurements by IAGOS and CO contributions by SOFT-IO (ppb)'
+            'text': f'Profile of CO measurements by IAGOS and modeled CO contributions by SOFT-IO (ppb)'
                     f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); time={curr_time}',
                     # f'emission regions={emission_region}</sup>',
         },

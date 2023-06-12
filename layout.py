@@ -35,6 +35,23 @@ GRAPH_CONFIG = {
 }  # for more see: help(dcc.Graph)
 
 
+NON_INTERACTIVE_GRAPH_CONFIG = {
+    'autosizable': False,
+    'displayModeBar': True,
+    'editable': False,
+    'modeBarButtons': [['toImage']],
+    'toImageButtonOptions': {
+        'filename': 'foo',
+        'format': 'png',
+        'height': 800,
+    },
+    'showAxisDragHandles': False,
+    'showAxisRangeEntryBoxes': False,
+    'showTips': True,
+    'displaylogo': False,
+    'responsive': True,
+}  # for more see: help(dcc.Graph)
+
 
 IAGOS_COLOR_HEX = '#456096'
 IAGOS_AIRPORT_SIZE = 10
@@ -130,11 +147,12 @@ def get_airports_map(airports_df):
     return dcc.Graph(
         id=FOOTPRINT_MAP_GRAPH_ID,
         figure=fig,
-        config={
-            'displayModeBar': True,
-            'displaylogo': False,
-            'scrollZoom': True,
-        }
+        # config={
+        #     'displayModeBar': True,
+        #     'displaylogo': False,
+        #     'scrollZoom': True,
+        # }
+        config=GRAPH_CONFIG,
     )
 
 
@@ -268,31 +286,62 @@ def get_layout(title_bar):
     profile_graph = dcc.Graph(
         id=PROFILE_GRAPH_ID,
         figure=go.Figure(),
-        config=GRAPH_CONFIG,
+        config=NON_INTERACTIVE_GRAPH_CONFIG,
     )
 
-    layout = html.Div(
-        style={'margin': '20px'},
-        children=dbc.Container(
+    layout = dbc.Container(
+        children=[
             dbc.Row(
                 [
                     dbc.Col(
                         [
                             title_bar,
                             dbc.Card([
-                                dbc.CardHeader('Options: '),
+                                # dbc.CardHeader('Options: '),
                                 dbc.CardBody(options_form),
-                                dbc.CardFooter(data_download_button)
+                                # dbc.CardFooter(data_download_button)
                             ]),
-                            profile_graph,
+                            dbc.Card([
+                                dbc.CardBody(profile_graph),
+                            ]),
+                            # profile_graph,
                         ],
                         width=5
                     ),
-                    dbc.Col([footprint_map, time_navigation_buttons, ts_graph], width=7),
+                    dbc.Col(
+                        [
+                            dbc.Container(
+                                dbc.Row(
+                                    [
+                                        dbc.Card(dbc.CardBody(footprint_map)),
+                                        dbc.Card(dbc.CardBody(ts_graph)),
+                                        data_download_button,
+                                        previous_time_button,
+                                        next_time_button
+                                    ],
+                                ),
+                                fluid=True,
+                            ),
+                            #dbc.Card(dbc.CardBody(footprint_map)),
+                            #dbc.Card(dbc.CardBody(ts_graph)),
+                        ],
+                        width=7
+                    ),
                 ],
+                # no_gutters=True,
+                className="vh-100",
             ),
-            fluid=True,
-        )
+            dbc.Row(
+                'Developed by P. Wolff (pawel.wolff@aero.obs-mip.fr) (CNRS) under ATMO-ACCESS, EU grant agreement No 101008004.'
+            ),
+            dbc.Row(
+                'Adapted from Sauvage, B., Fontaine, A., Eckhardt, S., Auby, A., Boulanger, D., Petetin, H., Paugam, R., Athier, G., Cousin, J.-M., Darras, S., Nédélec, P., Stohl, A., Turquety, S., Cammas, J.-P., and Thouret, V.: Source attribution using FLEXPART and carbon monoxide emission inventories: SOFT-IO version 1.0, Atmos. Chem. Phys., 17, 15271–15292, https://doi.org/10.5194/acp-17-15271-2017, 2017.'
+            ),
+            dbc.Row(
+                'The calculations were performed using NUWA - the computational cluster of Laboratoire d\'Aérologie in Toulouse, France'
+            ),
+        ],
+        fluid=True,
     )
 
     return layout

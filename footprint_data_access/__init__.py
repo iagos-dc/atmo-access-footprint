@@ -6,5 +6,5 @@ from .data_access import (
     nprofiles_by_airport,
     get_CO_ts,
     get_COprofile,
-    _clim_5y_ds,  # TODO: do it properly
+    get_COprofile_climatology,
 )

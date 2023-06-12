@@ -35,8 +35,8 @@ def get_dashboard_layout(app):
             ]),
             html.Div(
                 children=[
-                    html.H3('FLEXPART footprints and SOFT-IO CO contribution viewer', style={'font-weight': 'bold'}),
-                    html.H4('tropospheric vertical profiles', style={'font-weight': 'bold'}),
+                    html.H5('IAGOS viewer of FLEXPART (Lagrangian model) footprints and modeled SOFT-IO CO contributions', style={'font-weight': 'bold'}),
+                    # html.H5('tropospheric vertical profiles', style={'font-weight': 'bold'}),
                 ],
                 style={'text-align': 'center'},
             ),
@@ -48,16 +48,17 @@ def get_dashboard_layout(app):
     layout = html.Div(
         id='app-container-div',
         style={'margin': '10px', 'padding-bottom': '0px'},
-        children=get_app_data_stores() + [
-            html.Div(
-                id='heading-div',
-                className='twelve columns',
-                children=[
-                    # title_and_logo_bar,
-                    app_layout,
-                ]
-            )
-        ]
+        # children=get_app_data_stores() + [
+        #     html.Div(
+        #         id='heading-div',
+        #         className='twelve columns',
+        #         children=[
+        #             # title_and_logo_bar,
+        #             app_layout,
+        #         ]
+        #     )
+        # ]
+        children=get_app_data_stores() + [app_layout]
     )
 
     return layout
