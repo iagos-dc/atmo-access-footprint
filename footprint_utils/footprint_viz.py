@@ -13,7 +13,7 @@ from datashader import transfer_functions as tf, reductions as rd
 sys.path.append('/home/wolp/PycharmProjects/xarray_extras')
 sys.path.append('/home/wolp/PycharmProjects/common')
 
-import xarray_extras as xrx
+from footprint_utils import xarray_extras
 
 _gcs_to_3857 = Transformer.from_crs(4326, 3857, always_xy=True)
 _3857_to_gcs = Transformer.from_crs(3857, 4326, always_xy=True)

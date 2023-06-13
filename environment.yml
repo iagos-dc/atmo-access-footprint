@@ -3,18 +3,24 @@ channels:
   - plotly
   - conda-forge
 dependencies:
-  - python>=3.8
+  - python>=3.9.15
   - pip
   - dash==2.9.2
-  - dash-bootstrap-components>=1.2.1
+  - dash-bootstrap-components>=1.4.0
   - gunicorn>=20.0.4
   - netcdf4>=1.5.8
-  - pandas>=1.4.2
+  - pandas>=1.5.2
   - werkzeug>=2.1.1
-  - xarray>=2022.3.0
+  - xarray>=2022.12.0
   - folium>=0.12.1
   - tqdm>=4.64.0
   - toolz>=0.11.2
   - diskcache>=5.4.0
   - numba>=0.53.1
   - scipy>=1.9.3
+  - colorcet>=3.0.1
+  - datashader>=0.14.3
+  - plotly==5.14.1
+  - pyproj>=3.5.0
+  - zarr>=2.14.2
+  - h5netcdf>=1.1.0
