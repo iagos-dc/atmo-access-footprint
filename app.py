@@ -5,7 +5,7 @@ import dash_bootstrap_components as dbc
 
 
 from layout import get_app_data_stores, get_layout
-import callbacks
+import callbacks  # noq
 
 
 # logos
@@ -18,28 +18,24 @@ IAGOS_LOGO_FILENAME = 'iagos_logo.png'
 def get_dashboard_layout(app):
     # logo and application title
     title_and_logo_bar = html.Div(
-        style={
-            'display': 'flex',
-            'justify-content': 'space-between',
-            'margin-bottom': '20px',
-        },
+        style={'display': 'flex', 'justify-content': 'space-between', 'margin-bottom': '0px'},
         children=[
+            html.Div(
+                children=[
+                    html.H4('IAGOS viewer of FLEXPART (Lagrangian model) footprints and modeled SOFT-IO CO contributions', style={'font-weight': 'bold'}),
+                    html.H5('tropospheric vertical profiles', style={'font-weight': 'bold'}),
+                ],
+                style={'text-align': 'center'},
+            ),
             html.Div(children=[
                 html.A(
                     html.Img(
                         src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
-                        style={'float': 'left', 'height': '80px', 'margin-top': '0px'}
+                        style={'float': 'right', 'height': '80px', 'margin-top': '10px'}
                     ),
                     href="https://www.atmo-access.eu/",
                 ),
             ]),
-            html.Div(
-                children=[
-                    html.H5('IAGOS viewer of FLEXPART (Lagrangian model) footprints and modeled SOFT-IO CO contributions', style={'font-weight': 'bold'}),
-                    # html.H5('tropospheric vertical profiles', style={'font-weight': 'bold'}),
-                ],
-                style={'text-align': 'center'},
-            ),
         ]
     )
 
@@ -48,16 +44,6 @@ def get_dashboard_layout(app):
     layout = html.Div(
         id='app-container-div',
         style={'margin': '10px', 'padding-bottom': '0px'},
-        # children=get_app_data_stores() + [
-        #     html.Div(
-        #         id='heading-div',
-        #         className='twelve columns',
-        #         children=[
-        #             # title_and_logo_bar,
-        #             app_layout,
-        #         ]
-        #     )
-        # ]
         children=get_app_data_stores() + [app_layout]
     )
 
@@ -68,21 +54,14 @@ app = Dash(
     __name__,
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,
-        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css',
+        'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css',
+        #'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css',
     ],
 )
 
 server = app.server
 
 app.layout = get_dashboard_layout(app)
-
-
-# Begin of callback definitions and their helper routines.
-# See: https://dash.plotly.com/basic-callbacks
-# for a basic tutorial and
-# https://dash.plotly.com/  -->  Dash Callback in left menu
-# for more detailed documentation
-
 
 # Launch the Dash application in development mode
 if __name__ == "__main__":

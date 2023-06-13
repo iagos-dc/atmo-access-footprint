@@ -11,20 +11,15 @@ GRAPH_CONFIG = {
     'autosizable': True,
     'displayModeBar': True,
     'doubleClick': 'autosize',
-    #'fillFrame': True,
+    # 'fillFrame': True,
     #'editSelection': True,
     #'editable': False,
     'modeBarButtons': [['zoom2d', 'pan2d', 'zoomIn2d', 'zoomOut2d'], ['autoScale2d'], ['toImage']],
     'edits': {
         'titleText': True,
-        'axisTitleText': True,
+        'axisTitleText': False,
         'legendText': True,
         'colorbarTitleText': True,
-    },
-    'toImageButtonOptions': {
-        'filename': 'foo',
-        'format': 'svg',
-        'height': 800,
     },
     'showAxisDragHandles': True,
     'scrollZoom': True,
@@ -35,16 +30,31 @@ GRAPH_CONFIG = {
 }  # for more see: help(dcc.Graph)
 
 
+GRAPH_MAP_CONFIG = {
+    'modeBarButtons': [['zoomInMapbox', 'zoomOutMapbox'], ['resetViewMapbox'], ['toImage']],
+    'displayModeBar': True,
+    'displaylogo': False,
+    'scrollZoom': True,
+    'edits': {
+        'titleText': True,
+        'axisTitleText': False,
+        'legendText': True,
+        'colorbarTitleText': True,
+    },
+    'toImageButtonOptions': {
+        'filename': 'footprint',
+        'format': 'png',
+        'width': 1200,
+        'height': 800,
+    },
+}
+
+
 NON_INTERACTIVE_GRAPH_CONFIG = {
     'autosizable': False,
     'displayModeBar': True,
     'editable': False,
     'modeBarButtons': [['toImage']],
-    'toImageButtonOptions': {
-        'filename': 'foo',
-        'format': 'png',
-        'height': 800,
-    },
     'showAxisDragHandles': False,
     'showAxisRangeEntryBoxes': False,
     'showTips': True,
@@ -54,7 +64,7 @@ NON_INTERACTIVE_GRAPH_CONFIG = {
 
 
 IAGOS_COLOR_HEX = '#456096'
-IAGOS_AIRPORT_SIZE = 10
+IAGOS_AIRPORT_SIZE = 8
 MAPBOX_STYLES = {
     'open-street-map': 'open street map',
     'carto-positron': 'carto positron',
@@ -66,7 +76,7 @@ CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID = 'current_profile_idx_by_airport_store'
 
 AIRPORT_SELECT_ID = 'airport_select'
 VERTICAL_LAYER_RADIO_ID = 'vertical_layer_radio'
-TIME_SELECT_ID = 'time_select'
+TIME_INPUT_ID = 'time_input'
 PERIOD_FROM_INPUT_ID = 'period_from_input'
 PERIOD_TO_INPUT_ID = 'period_to_input'
 EMISSION_INVENTORY_CHECKLIST_ID = 'emission_inventory_checklist'
@@ -74,6 +84,8 @@ EMISSION_REGION_SELECT_ID = 'emission_region_select'
 DATA_DOWNLOAD_BUTTON_ID = 'data_download_button'
 PREVIOUS_TIME_BUTTON_ID = 'previous_time_button'
 NEXT_TIME_BUTTON_ID = 'next_time_button'
+REWIND_TIME_BUTTON_ID = 'rewind_time_button'
+FASTFORWARD_TIME_BUTTON_ID = 'fastforward_time_button'
 FOOTPRINT_MAP_GRAPH_ID = 'footprint_map_graph'
 CO_GRAPH_ID = 'CO_graph'
 PROFILE_GRAPH_ID = 'profile_graph'
@@ -107,7 +119,6 @@ def get_airports_map(airports_df):
          },
         size_max=7,
         zoom=2,
-        # width=1200, height=700,
         center={'lon': 10, 'lat': 55},
         title='IAGOS airports',
     )
@@ -132,8 +143,9 @@ def get_airports_map(airports_df):
     fig.update_layout(
         mapbox_style=DEFAULT_MAPBOX_STYLE,
         margin={'autoexpand': True, 'r': 0, 't': 40, 'l': 0, 'b': 0},
-        # width=1100, height=700,
+        height=600,
         autosize=True,
+        # autosize=False,
         # selectdirection='h', ???
         clickmode='event',
         dragmode='pan',
@@ -147,12 +159,7 @@ def get_airports_map(airports_df):
     return dcc.Graph(
         id=FOOTPRINT_MAP_GRAPH_ID,
         figure=fig,
-        # config={
-        #     'displayModeBar': True,
-        #     'displaylogo': False,
-        #     'scrollZoom': True,
-        # }
-        config=GRAPH_CONFIG,
+        config=GRAPH_MAP_CONFIG,
     )
 
 
@@ -186,24 +193,32 @@ def get_layout(title_bar):
 
     vertical_layer_radio = dbc.RadioItems(
         id=VERTICAL_LAYER_RADIO_ID,
-        # options=[
-        #     {'label': 'Lower troposphere (< 3km)', 'value': 'LT'},
-        #     {'label': 'Free troposphere (3km - 8km)', 'value': 'FT'},
-        #     {'label': 'Upper troposphere (> 8km)', 'value': 'UT'},
-        # ],
         options=[
-            {'label': 'LT (< 3km)', 'value': 'LT'},
-            {'label': 'FT (3km - 8km)', 'value': 'FT'},
-            {'label': 'UT (> 8km)', 'value': 'UT'},
+            {'label': 'Lower troposphere (< 3km)', 'value': 'LT'},
+            {'label': 'Free troposphere (3km - 8km)', 'value': 'FT'},
+            {'label': 'Upper troposphere (> 8km)', 'value': 'UT'},
         ],
+        # options=[
+        #     {'label': 'LT (< 3km)', 'value': 'LT'},
+        #     {'label': 'FT (3km - 8km)', 'value': 'FT'},
+        #     {'label': 'UT (> 8km)', 'value': 'UT'},
+        # ],
         value='LT',
-        # inline=False,
-        inline=True,
+        inline=False,
+        # inline=True,
     )
 
-    time_selection = dbc.Select(
-        id=TIME_SELECT_ID,
+    _placeholder = 'YYYY-MM-DD HH:MM'
+    time_selection = dbc.Input(
+        id=TIME_INPUT_ID,
+        type='text',
+        debounce=True,
+        placeholder=_placeholder,
+        maxLength=len(_placeholder),
+        invalid=False,
+        style={'text-align': 'center'},
     )
+
     # period_input = dbc.InputGroup(
     #     [
     #         dbc.InputGroupText('From'),
@@ -234,18 +249,6 @@ def get_layout(title_bar):
         value='TOTAL',
     )
 
-    options_form = dbc.Form(
-        [
-            get_form_item('Airport', airport_selection),
-            get_form_item('Vertical layer', vertical_layer_radio),
-            # get_form_item('Time', time_selection),
-            get_form_item('CO contribution (emission inventory)', emission_inventory_checklist),
-            get_form_item('CO contribution (emission region)', emission_region_selection),
-        ],
-    )
-
-    footprint_map = get_airports_map(airports_df)
-
     data_download_button = dbc.Button(
         id=DATA_DOWNLOAD_BUTTON_ID,
         n_clicks=0,
@@ -254,94 +257,120 @@ def get_layout(title_bar):
         children='Data download'
     )
 
+    rewind_time_button = dbc.Button(
+        id=REWIND_TIME_BUTTON_ID,
+        n_clicks=0,
+        color='primary', type='submit',
+        children=html.Div(className='bi bi-chevron-double-left')
+    )
     previous_time_button = dbc.Button(
         id=PREVIOUS_TIME_BUTTON_ID,
         n_clicks=0,
         color='primary', type='submit',
-        style={'font-weight': 'bold'},
-        children='Previous'
+        children=html.Div(className='bi bi-chevron-left')
     )
     next_time_button = dbc.Button(
         id=NEXT_TIME_BUTTON_ID,
         n_clicks=0,
         color='primary', type='submit',
-        style={'font-weight': 'bold'},
-        children='Next'
+        children=html.Div(className='bi bi-chevron-right')
     )
-    time_navigation_buttons = dbc.Container(dbc.Row(
-        [
-            dbc.Col(previous_time_button, width=4, align='right'),
-            dbc.Col(next_time_button, width=4, align='left'),
-        ],
-        align='top',
-        justify='between',
-    ))
+    fastforward_time_button = dbc.Button(
+        id=FASTFORWARD_TIME_BUTTON_ID,
+        n_clicks=0,
+        color='primary', type='submit',
+        children=html.Div(className='bi bi-chevron-double-right')
+    )
 
+    options_form = dbc.Form(
+        [
+            get_form_item('Airport', airport_selection),
+            get_form_item('Vertical layer', vertical_layer_radio),
+            dbc.Row(
+                [
+                    dbc.Label('Time', width=4),
+                    # TODO: do it in one Div (see how it reacts to window resize)
+                    dbc.Col(rewind_time_button, width='auto'),
+                    dbc.Col(previous_time_button, width='auto'),
+                    dbc.Col(time_selection, width='auto'),
+                    dbc.Col(next_time_button, width='auto'),
+                    dbc.Col(fastforward_time_button, width='auto'),
+                ],
+                justify='between',
+                class_name='g-0',  # no-gutters
+            ),
+            get_form_item(html.Div(['CO contribution', html.Br(), '(emission inventory)']), emission_inventory_checklist),
+            get_form_item(html.Div(['CO contribution', html.Br(), '(emission region)']), emission_region_selection),
+            dbc.Row(dbc.Col(data_download_button, width='auto'), justify='center'),
+        ],
+    )
+
+    footprint_map = get_airports_map(airports_df)
+
+    graph_config = dict(GRAPH_CONFIG)
+    graph_config.update({
+        'toImageButtonOptions': {
+            'filename': 'CO-time-series',
+            'format': 'svg',
+            'height': 600,
+            'width': 1200,
+            # 'scale': 2,
+        },
+    })
     ts_graph = dcc.Graph(
         id=CO_GRAPH_ID,
         figure=go.Figure(),
-        config=GRAPH_CONFIG,
+        config=graph_config,
+        # style={'width': '100%', 'height': '100%'}
     )
 
+    graph_config = dict(NON_INTERACTIVE_GRAPH_CONFIG)
+    graph_config.update({
+        'toImageButtonOptions': {
+            'filename': 'CO-profile',
+            'format': 'svg',
+            'height': 800,
+            'width': 600,
+            # 'scale': 2,
+        },
+    })
     profile_graph = dcc.Graph(
         id=PROFILE_GRAPH_ID,
         figure=go.Figure(),
-        config=NON_INTERACTIVE_GRAPH_CONFIG,
+        config=graph_config,
+        # style={'width': '100%', 'height': '100%'}
     )
 
-    layout = dbc.Container(
-        children=[
-            dbc.Row(
-                [
-                    dbc.Col(
-                        [
-                            title_bar,
-                            dbc.Card([
-                                # dbc.CardHeader('Options: '),
-                                dbc.CardBody(options_form),
-                                # dbc.CardFooter(data_download_button)
-                            ]),
-                            dbc.Card([
-                                dbc.CardBody(profile_graph),
-                            ]),
-                            # profile_graph,
-                        ],
-                        width=5
-                    ),
-                    dbc.Col(
-                        [
-                            dbc.Container(
-                                dbc.Row(
-                                    [
-                                        dbc.Card(dbc.CardBody(footprint_map)),
-                                        dbc.Card(dbc.CardBody(ts_graph)),
-                                        data_download_button,
-                                        previous_time_button,
-                                        next_time_button
-                                    ],
-                                ),
-                                fluid=True,
-                            ),
-                            #dbc.Card(dbc.CardBody(footprint_map)),
-                            #dbc.Card(dbc.CardBody(ts_graph)),
-                        ],
-                        width=7
-                    ),
-                ],
-                # no_gutters=True,
-                className="vh-100",
-            ),
-            dbc.Row(
-                'Developed by P. Wolff (pawel.wolff@aero.obs-mip.fr) (CNRS) under ATMO-ACCESS, EU grant agreement No 101008004.'
-            ),
-            dbc.Row(
-                'Adapted from Sauvage, B., Fontaine, A., Eckhardt, S., Auby, A., Boulanger, D., Petetin, H., Paugam, R., Athier, G., Cousin, J.-M., Darras, S., Nédélec, P., Stohl, A., Turquety, S., Cammas, J.-P., and Thouret, V.: Source attribution using FLEXPART and carbon monoxide emission inventories: SOFT-IO version 1.0, Atmos. Chem. Phys., 17, 15271–15292, https://doi.org/10.5194/acp-17-15271-2017, 2017.'
-            ),
-            dbc.Row(
-                'The calculations were performed using NUWA - the computational cluster of Laboratoire d\'Aérologie in Toulouse, France'
-            ),
+    footer = [
+        html.Div('Developed by P. Wolff (pawel.wolff@aero.obs-mip.fr) (CNRS) under ATMO-ACCESS, EU grant agreement No 101008004.'),
+        html.Br(),
+        html.Div('Adapted from Sauvage, B., Fontaine, A., Eckhardt, S., Auby, A., Boulanger, D., Petetin, H., Paugam, R., Athier, '
+        'G., Cousin, J.-M., Darras, S., Nédélec, P., Stohl, A., Turquety, S., Cammas, J.-P., and Thouret, V.: '
+        'Source attribution using FLEXPART and carbon monoxide emission inventories: SOFT-IO version 1.0, '
+        'Atmos. Chem. Phys., 17, 15271–15292, https://doi.org/10.5194/acp-17-15271-2017, 2017.'),
+        html.Br(),
+        html.Div('The calculations were performed using NUWA - the computational cluster of Laboratoire d\'Aérologie in Toulouse, France'),
+    ]
+
+    layout_body = dbc.Container(
+        [
+            dbc.Row([
+                dbc.Col(dbc.Card(dbc.CardBody(options_form)), width=4),
+                dbc.Col(dbc.Card(dbc.CardBody(ts_graph)), width=8),
+            ]),
+            dbc.Row([
+                dbc.Col(dbc.Card(dbc.CardBody(profile_graph)), width=4),
+                dbc.Col(dbc.Card(dbc.CardBody(footprint_map)), width=8),
+                # dbc.Col(footprint_map, width=8),
+            ])
         ],
         fluid=True,
     )
+
+    layout = dbc.Card([
+        dbc.CardHeader(title_bar),
+        dbc.CardBody(layout_body),
+        dbc.CardHeader(footer)
+    ])
 
     return layout
