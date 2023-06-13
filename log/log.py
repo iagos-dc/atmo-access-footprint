@@ -89,7 +89,7 @@ def print_callback(log_callback_context=True):
                 from dash import ctx
                 d['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids)
 
-            print(d)
+            # print(d)
 
             return func(*args, **kwargs)
         return log_callback_wrapper

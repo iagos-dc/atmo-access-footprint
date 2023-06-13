@@ -2,7 +2,7 @@ import pandas as pd
 import xarray as xr
 
 from footprint_utils import helper
-from footprint_data_access.data_access import _COprofile_ds
+from footprint_data_access.data_access import _COprofile_ds, DATA_PATH
 
 
 if __name__ == '__main__':
@@ -47,5 +47,5 @@ if __name__ == '__main__':
         .sortby('year')\
         .transpose('code', 'year', 'air_press_AC')
 
-    CO_stat_by_code_and_year.to_netcdf('/home/wolp/data/fp_agg/COprofile_climat_data.nc', engine='h5netcdf')
+    CO_stat_by_code_and_year.to_netcdf(DATA_PATH / 'COprofile_climat_data.nc', engine='h5netcdf')
     print('Done!')

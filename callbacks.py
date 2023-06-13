@@ -27,7 +27,7 @@ USE_GL = 500
 
 @functools.lru_cache(maxsize=128)
 def get_footprint_img(airport_code, layer, profile_idx):
-    print(f'get_footprint_img({airport_code}, {layer}, {profile_idx})')
+    # print(f'get_footprint_img({airport_code}, {layer}, {profile_idx})')
     flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
     res_time_per_km2 = get_residence_time(flight_id, profile, layer)
     if res_time_per_km2 is not None:
@@ -232,12 +232,10 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         emission_inventory_it = iter(emission_inventory)
         ei = next(emission_inventory_it)
         ser, customdata = SOFTIO_ser[ei]['TOTAL']
-        print('customdata', customdata)
         for ei in emission_inventory_it:
             ser2, customdata2 = SOFTIO_ser[ei]['TOTAL']
             ser = ser + ser2
             customdata.update(customdata2)
-            print('customdata2', customdata)
 
         if USE_GL and len(ser) > USE_GL:
             go_scatter = go.Scattergl
@@ -290,7 +288,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         profile_idx = current_profile_idx_by_airport[airport_code]
         curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
         curr_time = pd.Timestamp(curr_time)
-        print(f'time={curr_time}')
+        # print(f'time={curr_time}')
         fig['layout']['shapes'] = [
             {
                 'line': {'color': 'grey', 'width': 1, 'dash': 'dot'},
@@ -329,7 +327,7 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
 
     profile_idx = current_profile_idx_by_airport[airport_code]
 
-    print(f'get_COprofile({airport_code}, {profile_idx})')
+    # print(f'get_COprofile({airport_code}, {profile_idx})')
     flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
     CO_profile_ds = get_COprofile(flight_id, profile)
 

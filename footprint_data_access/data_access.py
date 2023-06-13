@@ -7,13 +7,17 @@ import xarray as xr
 from footprint_utils import helper
 
 
+_DATA_PATH = '/home/wolp/data/fp_agg'
+
+DATA_PATH = pathlib.Path(_DATA_PATH)
+
 _iagos_airports = None
 _fp_da = None
 
-CO_data_url = pathlib.Path('/home/wolp/data/fp_agg/CO_data.nc')
-COprofile_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_data.nc')
-COprofile_climat_data_url = pathlib.Path('/home/wolp/data/fp_agg/COprofile_climat_data.nc')
-footprint_data_url = pathlib.Path('/home/wolp/data/fp_agg/footprint_by_flight_id.zarr/')
+CO_data_url = DATA_PATH / 'CO_data.nc'
+COprofile_data_url = DATA_PATH / 'COprofile_data.nc'
+COprofile_climat_data_url = DATA_PATH / 'COprofile_climat_data.nc'
+footprint_data_url = DATA_PATH / 'footprint_by_flight_id.zarr'
 
 
 _COprofile_ds = xr.open_dataset(COprofile_data_url, engine='h5netcdf')

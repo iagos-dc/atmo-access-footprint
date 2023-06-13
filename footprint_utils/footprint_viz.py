@@ -1,19 +1,13 @@
-import sys
 import xarray as xr
 import colorcet
-import datashader
-import datashader.transfer_functions as tf
 import numpy as np
 import plotly.graph_objects as go
 from pyproj import Transformer
+import datashader
+from datashader import transfer_functions as tf
 
+from footprint_utils import xarray_extras  # noq
 
-from datashader import transfer_functions as tf, reductions as rd
-
-sys.path.append('/home/wolp/PycharmProjects/xarray_extras')
-sys.path.append('/home/wolp/PycharmProjects/common')
-
-from footprint_utils import xarray_extras
 
 _gcs_to_3857 = Transformer.from_crs(4326, 3857, always_xy=True)
 _3857_to_gcs = Transformer.from_crs(3857, 4326, always_xy=True)
@@ -25,8 +19,9 @@ def trim_small_values(da, threshold=0.01, check_if_lon_lat_increasing=False):
         if check_if_lon_lat_increasing:
             da = da.xrx.make_coordinates_increasing([lon, lat])
         da_filtered = da.where(da >= da.max() * threshold, drop=True)
-        # BUG: lon2, lat2 are 0 size arrays if da has nan's only
         lon2, lat2 = da_filtered[lon], da_filtered[lat]
+        # BUG fix: lon2, lat2 are 0 size arrays if da has nan's only
+        # TODO: do it properly...
         if len(lon2) >= 1 and len(lat2) >= 1:
             da = da.sel({lon: slice(lon2[0], lon2[-1]), lat: slice(lat2[0], lat2[-1])})
 
@@ -113,33 +108,3 @@ def get_footprint_viz(da, threshold=0.003):
         "coordinates": coordinates,
     }
     return mapbox_layer
-
-
-### MAIN ###
-if __name__ == '__main__':
-    ds = xr.open_dataset('/home/wolp/data/fp_agg/footprint_by_airport_code/FRA.nc')
-
-    da = ds['res_time_per_km2'].isel(layer=0, time=-1500).rename({'latitude': 'lat', 'longitude': 'lon'}).reset_coords(drop=True)
-    # da.load()
-    threshold = 0.001
-    da = trim_small_values(da, threshold=threshold)
-    agg, coordinates = regrid(da, upsampling_resol_factor=(10, 10), is_proj_rectilinear=True)
-    #im = tf.shade(np.power(agg, 0.25), cmap=['rgba(221, 211, 17, 0)', 'rgba(221, 17, 119, 1)'], how='linear', alpha=255, min_alpha=0)
-    im = tf.shade(np.sqrt(agg), cmap='darkred', how='linear', alpha=200, min_alpha=0)
-    #im = tf.shade(np.sqrt(agg), cmap=colorcet.CET_L19, how='linear', alpha=200, min_alpha=0)
-    img = im[::-1].to_pil()
-
-    fig = go.Figure(go.Scattermapbox())
-    #fig = go.Figure(go.Scattergeo())
-    fig.update_layout(
-        mapbox_style="open-street-map",
-        mapbox_layers=[
-            {
-                "sourcetype": "image",
-                "source": img,
-                "coordinates": coordinates,
-            },
-        ],
-        margin={"r": 0, "t": 0, "l": 0, "b": 0},
-    )
-    fig.show()
