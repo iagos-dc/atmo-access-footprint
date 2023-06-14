@@ -71,7 +71,6 @@ MAPBOX_STYLES = {
 }
 DEFAULT_MAPBOX_STYLE = 'carto-positron'
 
-
 CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID = 'current_profile_idx_by_airport_store'
 
 AIRPORT_SELECT_ID = 'airport_select'
@@ -91,6 +90,27 @@ CO_GRAPH_ID = 'CO_graph'
 PROFILE_GRAPH_ID = 'profile_graph'
 
 GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
+COLOR_HEX_BY_GFED4_REGION = {
+    'BONA': '#3460ff',
+    'TENA': '#ffab00',
+    'CEAM': '#fe01fd',
+    'NHSA': '#d8b6ff',
+    'SHSA': '#956aff',
+    'EURO': '#54ffff',
+    'MIDE': '#488db1',
+    'NHAF': '#547818',
+    'SHAF': '#ff547e',
+    'BOAS': '#ffff7e',
+    'CEAS': '#aa8449',
+    'SEAS': '#00d800',
+    'EQAS': '#00acff',
+    'AUST': '#e5ffbb',
+    'TOTAL': {
+        'GFAS': '#ff0000',
+        'CEDS2': '#949602',
+        'ALL': '#c26202'
+    }
+}
 
 DEFAULT_AIRPORT = 'FRA'
 
@@ -118,8 +138,8 @@ def get_airports_map(airports_df):
              # 'marker_size': False
          },
         size_max=7,
-        zoom=2,
-        center={'lon': 10, 'lat': 55},
+        zoom=1,
+        center={'lon': 30, 'lat': 30},
         title='IAGOS airports',
     )
 
@@ -142,7 +162,7 @@ def get_airports_map(airports_df):
     # )
     fig.update_layout(
         mapbox_style=DEFAULT_MAPBOX_STYLE,
-        margin={'autoexpand': True, 'r': 0, 't': 40, 'l': 0, 'b': 0},
+        margin={'autoexpand': True, 'r': 0, 't': 60, 'l': 0, 'b': 0},
         height=600,
         autosize=True,
         # autosize=False,
@@ -171,21 +191,10 @@ def get_layout(title_bar):
         ])
         return form_item
 
-    def time_input_field(i):
-        placeholder = 'YYYY-MM-DD'
-        return dbc.Input(
-            id=i,
-            type='text',
-            debounce=True,
-            placeholder=placeholder,
-            maxLength=len(placeholder),
-            invalid=False,
-        )
-
     airport_selection = dbc.Select(
         id=AIRPORT_SELECT_ID,
         options=[
-            {'label': f'{long_name} ({short_name})', 'value': short_name}
+            {'label': f'{long_name} ({short_name}) - {footprint_data_access.nprofiles_by_airport[short_name]} profiles', 'value': short_name}
             for short_name, long_name in airport_name_by_code.items()
         ],
         value=DEFAULT_AIRPORT,
@@ -205,7 +214,6 @@ def get_layout(title_bar):
         # ],
         value='LT',
         inline=False,
-        # inline=True,
     )
 
     _placeholder = 'YYYY-MM-DD HH:MM'
@@ -219,22 +227,11 @@ def get_layout(title_bar):
         style={'text-align': 'center'},
     )
 
-    # period_input = dbc.InputGroup(
-    #     [
-    #         dbc.InputGroupText('From'),
-    #         time_input_field(PERIOD_FROM_INPUT_ID),
-    #         dbc.InputGroupText('to'),
-    #         time_input_field(PERIOD_TO_INPUT_ID),
-    #     ],
-    #     # id=interval_input_group_id(aio_id, aio_class),
-    #     # className='mb-3',
-    # )
-
     emission_inventory_checklist = dbc.Checklist(
         id=EMISSION_INVENTORY_CHECKLIST_ID,
         options=[
             {'label': 'Biomass burning (GFAS v1.2)', 'value': 'GFAS'},
-            {'label': 'Anthropogenic (CEDS v2)', 'value': 'CEDS2'},
+            {'label': 'Anthropogenic (CEDS v2; until 2019)', 'value': 'CEDS2'},
         ],
         value=['GFAS', 'CEDS2'],
         inline=False,
@@ -344,12 +341,20 @@ def get_layout(title_bar):
     footer = [
         html.Div('Developed by P. Wolff (pawel.wolff@aero.obs-mip.fr) (CNRS) under ATMO-ACCESS, EU grant agreement No 101008004.'),
         html.Br(),
-        html.Div('Adapted from Sauvage, B., Fontaine, A., Eckhardt, S., Auby, A., Boulanger, D., Petetin, H., Paugam, R., Athier, '
-        'G., Cousin, J.-M., Darras, S., Nédélec, P., Stohl, A., Turquety, S., Cammas, J.-P., and Thouret, V.: '
-        'Source attribution using FLEXPART and carbon monoxide emission inventories: SOFT-IO version 1.0, '
-        'Atmos. Chem. Phys., 17, 15271–15292, https://doi.org/10.5194/acp-17-15271-2017, 2017.'),
+        html.Div([
+            'Adapted from Sauvage, B., Fontaine, A., Eckhardt, S., Auby, A., Boulanger, D., Petetin, H., Paugam, R., Athier, '
+            'G., Cousin, J.-M., Darras, S., Nédélec, P., Stohl, A., Turquety, S., Cammas, J.-P., and Thouret, V.: '
+            'Source attribution using FLEXPART and carbon monoxide emission inventories: SOFT-IO version 1.0, '
+            'Atmos. Chem. Phys., 17, 15271–15292, ',
+            html.A('https://doi.org/10.5194/acp-17-15271-2017', href='https://doi.org/10.5194/acp-17-15271-2017', target='_blank'),
+            ', 2017.'
+        ]),
         html.Br(),
-        html.Div('The calculations were performed using NUWA - the computational cluster of Laboratoire d\'Aérologie in Toulouse, France'),
+        html.Div([
+            'The calculations were performed using NUWA - the computational cluster of ',
+            html.A('Laboratoire d\'Aérologie', href='https://www.aero.obs-mip.fr/', target='_blank'),
+            ' in Toulouse, France.'
+        ]),
     ]
 
     layout_body = dbc.Container(

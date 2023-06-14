@@ -16,7 +16,7 @@ from log import log_exception, logger, log_callback
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
     NEXT_TIME_BUTTON_ID, REWIND_TIME_BUTTON_ID, FASTFORWARD_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
-    airport_name_by_code, airports_df
+    COLOR_HEX_BY_GFED4_REGION, airport_name_by_code, airports_df
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
@@ -128,8 +128,8 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
 
     curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
     title = f'IAGOS airports and 10-day backward footprint' \
-            f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}), ' \
-            f'layer={vertical_layer}; time={pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}</sup>'
+            f'<br>from <b>{vertical_layer}</b> layer over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) ' \
+            f'on <b>{pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}</b>'
     fig['layout']['title'] = title
     fig['layout']['mapbox']['layers'] = [mapbox_layer]
     return fig
@@ -213,6 +213,18 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
             else:
                 go_scatter = go.Scatter
 
+            if reg != 'TOTAL':
+                color = COLOR_HEX_BY_GFED4_REGION.get(reg)
+            else:
+                color = COLOR_HEX_BY_GFED4_REGION['TOTAL'].get(ei)
+            if color is not None:
+                trace_kwargs = {
+                    'marker_color': color,
+                    'line_color': color
+                }
+            else:
+                trace_kwargs = {}
+
             trace = go_scatter(
                 x=ser.index.values,
                 y=ser.values,
@@ -221,9 +233,8 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
                 name=f'{ei} {reg}',
                 legendgroup='SOFT-IO',
                 legendgrouptitle_text='SOFT-IO',
-                marker={'size': 2},
-                #marker={'color': color},
-                #line={'color': color},
+                marker={'size': 3},
+                **trace_kwargs
             )
 
             fig.add_trace(trace, row=2, col=1)
@@ -242,6 +253,15 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         else:
             go_scatter = go.Scatter
 
+        color = COLOR_HEX_BY_GFED4_REGION['TOTAL']['ALL']
+        if color is not None:
+            trace_kwargs = {
+                'marker_color': color,
+                'line_color': color
+            }
+        else:
+            trace_kwargs = {}
+
         trace = go_scatter(
             x=ser.index.values,
             y=ser.values,
@@ -250,9 +270,8 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
             name='<br>+'.join([f'{ei} TOTAL' for ei in emission_inventory]),
             legendgroup='SOFT-IO',
             legendgrouptitle_text='SOFT-IO',
-            marker={'size': 2},
-            # marker={'color': color},
-            # line={'color': color},
+            marker={'size': 3},
+            **trace_kwargs
         )
 
         fig.add_trace(trace, row=2, col=1)
@@ -269,13 +288,14 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     fig.update_layout(
         title={
-            'text': f'CO measurements by IAGOS and modeled CO contributions by SOFT-IO (ppb)'
-                    f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); layer={vertical_layer}; '
-                    f'emission regions={", ".join(emission_region)}</sup>',
+            'text': f'CO measurements by IAGOS and modelled CO contributions by SOFT-IO (ppb)'
+                    f'<br>over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>), '
+                    f'averaged in <b>{vertical_layer}</b> layer',
+                    #f'emission regions={", ".join(emission_region)}</sup>',
         },
         uirevision=airport_code,
         autosize=False,
-        margin={'autoexpand': True, 'r': 0, 't': 50, 'l': 0, 'b': 0},
+        margin={'autoexpand': True, 'r': 0, 't': 60, 'l': 0, 'b': 0},
         legend={
             'groupclick': 'toggleitem',
             'tracegroupgap': 120,
@@ -447,15 +467,14 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
 
     # build figure
     fig = go.Figure([COprofile_trace, COclimat_trace, COclimat_trace_1, COclimat_trace_2] + softio_traces)
-    fig.update_xaxes(title='CO (ppb)', range=[-x_max * 0.02, x_max * 1.02], fixedrange=True)
+    fig.update_xaxes(title='CO (ppb)', range=[-x_max * 0.05, x_max * 1.05], fixedrange=True)
     fig.update_yaxes(title='altitude (m a.s.l.)', range=[-100, 12e3], fixedrange=True)
     fig.update_layout(
         # width=400,
         height=600,
         title={
-            'text': f'Profile of CO measurements by IAGOS and<br>modeled CO contributions by SOFT-IO (ppb)'
-                    f'<br><sup>{airport_name_by_code[airport_code]} ({airport_code}); time={curr_time}</sup>',
-                    # f'emission regions={emission_region}</sup>',
+            'text': f'Profile of CO measurements by IAGOS and<br>modelled CO contributions by SOFT-IO (ppb)'
+                    f'<br>over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) on <b>{curr_time}</b>',
         },
         # uirevision=airport_code,
         legend={
@@ -465,7 +484,7 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         },
         showlegend=True,
         autosize=False,
-        margin={'autoexpand': True, 'r': 0, 't': 90, 'l': 0, 'b': 0},
+        margin={'autoexpand': True, 'r': 0, 't': 105, 'l': 0, 'b': 0},
     )
 
     return fig

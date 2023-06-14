@@ -16,13 +16,23 @@ IAGOS_LOGO_FILENAME = 'iagos_logo.png'
 # Begin of definition of routines which constructs components of the dashboard
 
 def get_dashboard_layout(app):
+    title = html.Div([
+        'IAGOS viewer of ',
+        html.A('FLEXPART', href='https://www.flexpart.eu', target='_blank'),
+        ' (Lagrangian model) footprints and modelled ',
+        html.A('SOFT-IO', href='https://doi.org/10.5194/acp-17-15271-2017', target='_blank'),
+        ' CO contributions'
+    ])
     # logo and application title
     title_and_logo_bar = html.Div(
         style={'display': 'flex', 'justify-content': 'space-between', 'margin-bottom': '0px'},
         children=[
             html.Div(
                 children=[
-                    html.H4('IAGOS viewer of FLEXPART (Lagrangian model) footprints and modeled SOFT-IO CO contributions', style={'font-weight': 'bold'}),
+                    html.H4(
+                        title,
+                        style={'font-weight': 'bold'}
+                    ),
                     html.H5('tropospheric vertical profiles', style={'font-weight': 'bold'}),
                 ],
                 style={'text-align': 'center'},
@@ -34,6 +44,7 @@ def get_dashboard_layout(app):
                         style={'float': 'right', 'height': '80px', 'margin-top': '10px'}
                     ),
                     href="https://www.atmo-access.eu/",
+                    target='_blank',
                 ),
             ]),
         ]
@@ -62,6 +73,7 @@ app = Dash(
 server = app.server
 
 app.layout = get_dashboard_layout(app)
+app.title = 'IAGOS footprint'
 
 # Launch the Dash application in development mode
 if __name__ == "__main__":
