@@ -86,8 +86,12 @@ NEXT_TIME_BUTTON_ID = 'next_time_button'
 REWIND_TIME_BUTTON_ID = 'rewind_time_button'
 FASTFORWARD_TIME_BUTTON_ID = 'fastforward_time_button'
 FOOTPRINT_MAP_GRAPH_ID = 'footprint_map_graph'
+FOOTPRINT_MAP_CONTAINER_ID = 'footprint_map_container'
 CO_GRAPH_ID = 'CO_graph'
+CO_GRAPH_CONTAINER_ID = 'CO_graph_container'
 PROFILE_GRAPH_ID = 'profile_graph'
+PROFILE_GRAPH_CONTAINER_ID = 'profile_graph_container'
+SHOW_TOOLTIPS_SWITCH_ID = 'show_tooltips_switch_id'
 DATA_DOWNLOAD_POPUP_ID = 'data_download_popup'
 
 GEO_REGIONS_WITHOUT_TOTAL = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST']
@@ -126,9 +130,101 @@ airports_df = footprint_data_access.get_iagos_airports(top=None).sort_values('lo
 airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))
 
 
+_installed_tooltip_ids = set()
+
+
+def get_installed_tooltip_ids():
+    return list(_installed_tooltip_ids)
+
+
+def _tooltip_target_to_str(target):
+    if isinstance(target, dict):
+        target_as_str = '_'.join(f'{k}-{v}' for k, v in target.items())
+    elif isinstance(target, str):
+        target_as_str = target
+    else:
+        raise TypeError(f'target must be either str or dict; got type(target)={type(target)}')
+    return f'tooltip-to-{target_as_str}'
+
+
+def get_tooltip(tooltip_text, target, **kwargs):
+    global _installed_tooltip_ids
+    tooltip_kwargs = {
+        'placement': 'top-start',
+        'style': {'font-size': '0.8em'}
+    }
+    tooltip_kwargs.update(kwargs)
+
+    tooltip_id = _tooltip_target_to_str(target)
+    _installed_tooltip_ids.add(tooltip_id)
+    return dbc.Tooltip(
+        tooltip_text,
+        id=tooltip_id,
+        target=target,
+        **tooltip_kwargs
+    )
+
+
+def get_app_tooltips():
+    ts_graph_tooltip = get_tooltip(
+        html.Div([
+            'Use drag-and-drop or the toolbox in the right-top to zoom, pan or download the plot',
+            html.Br(),
+            'Click on a legend item to hide or show it on the plot',
+            html.Br(),
+            'Click on any point on the plot to set a footprint and a profile time for the plots below'
+        ]),
+        CO_GRAPH_CONTAINER_ID,
+    )
+    profile_graph_tooltip = get_tooltip(
+        html.Div([
+            'Use drag-and-drop or the toolbox in the right-top to zoom, pan or download the plot',
+            html.Br(),
+            'Click on a legend item to hide or show it on the plot',
+            html.Br(),
+            'Double-click on the plot title or a legend item annotation to edit it'
+        ]),
+        PROFILE_GRAPH_CONTAINER_ID,
+    )
+    footprint_map_tooltip = get_tooltip(
+        'Click on the map to select an airport',
+        FOOTPRINT_MAP_CONTAINER_ID,
+    )
+
+    time_input_tooltip = get_tooltip(
+        html.Div([
+            'Click on any point on the plot above to set a footprint and a profile time',
+            html.Br(),
+            'The current time is indicated on the plot above with the dashed vertical line'
+        ]),
+        TIME_INPUT_ID,
+    )
+    prev_time_tooltip = get_tooltip(
+        html.Div('Previous time step'),
+        PREVIOUS_TIME_BUTTON_ID,
+    )
+    next_time_tooltip = get_tooltip(
+        html.Div('Next time step'),
+        NEXT_TIME_BUTTON_ID,
+    )
+    rew_time_tooltip = get_tooltip(
+        html.Div('Jump several time steps back'),
+        REWIND_TIME_BUTTON_ID,
+    )
+    ff_time_tooltip = get_tooltip(
+        html.Div('Jump several time steps ahead'),
+        FASTFORWARD_TIME_BUTTON_ID,
+    )
+
+    return [
+        ts_graph_tooltip, profile_graph_tooltip, footprint_map_tooltip,
+        time_input_tooltip, prev_time_tooltip, next_time_tooltip, rew_time_tooltip, ff_time_tooltip,
+    ]
+
+
 def get_app_data_stores():
     return [
-        dcc.Store(id=CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, data={})
+        dcc.Store(id=CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, data={}, storage_type='session')
     ]
 
 
@@ -205,6 +301,8 @@ def get_layout(title_bar, app):
             for short_name, long_name in airport_name_by_code.items()
         ],
         value=DEFAULT_AIRPORT,
+        persistence=True,
+        persistence_type='session',
         size='lg',
     )
 
@@ -222,6 +320,8 @@ def get_layout(title_bar, app):
         ],
         value='LT',
         inline=True,
+        persistence=True,
+        persistence_type='session',
     )
 
     _placeholder = 'YYYY-MM-DD HH:MM'
@@ -233,6 +333,8 @@ def get_layout(title_bar, app):
         maxLength=len(_placeholder),
         invalid=False,
         readonly=True,
+        # persistence=True,
+        # persistence_type='session',
         style={'text-align': 'center'},
         size='lg',
     )
@@ -245,6 +347,8 @@ def get_layout(title_bar, app):
         ],
         value=['GFAS', 'CEDS2'],
         inline=False,
+        persistence=True,
+        persistence_type='session',
     )
 
     emission_region_selection = dbc.Select(
@@ -254,7 +358,17 @@ def get_layout(title_bar, app):
             for region in GEO_REGIONS
         ],
         value='TOTAL',
+        persistence=True,
+        persistence_type='session',
         size='lg',
+    )
+
+    show_tooltips_switch = dbc.Switch(
+        id=SHOW_TOOLTIPS_SWITCH_ID,
+        label='Help tips',
+        value=True,
+        persistence=True,
+        persistence_type='local',
     )
 
     data_download_button = dbc.Button(
@@ -390,41 +504,49 @@ def get_layout(title_bar, app):
         size='lg',
     )
 
-    emission_region_selection_group = dbc.InputGroup(
-        [
-            dbc.InputGroupText('Emission region'),
-            # emission_region_selection,
-        ],
-        size='lg',
-    )
-
-    time_and_emission_region_control = dbc.Row(
+    time_control = dbc.Row(
         [
             dbc.Col(time_selection_group, width='auto'),
-            # dbc.Col(emission_region_selection_group, width='auto')
         ],
         justify='left',
     )
 
+    tooltips = get_app_tooltips()
+
     layout_body = dbc.Container(
         [
             dbc.Row([
-                dbc.Col(dbc.Card([dbc.CardBody(options_form), dbc.CardFooter(dbc.Row(dbc.Col(data_download_button, width='auto'), justify='center'))]), width=4),
+                dbc.Col(
+                    dbc.Card([
+                        dbc.CardBody(options_form),
+                        dbc.CardFooter(dbc.Row(
+                            [
+                                dbc.Col(show_tooltips_switch, width='auto'),
+                                dbc.Col(data_download_button, width='auto'),
+                            ],
+                            justify='between'
+                        ))
+                    ]),
+                    width=4
+                ),
                 dbc.Col(
                     dbc.Card(
                         [
-                            dbc.CardBody(dbc.Row(ts_graph)),
-                            dbc.CardFooter(time_and_emission_region_control),
+                            dbc.CardBody(html.Div(ts_graph, id=CO_GRAPH_CONTAINER_ID)),
+                                # for some reason the tooltip to dcc.Graphs must point to Div's
+                                # containing the graphs to work correctly.
+                                # Otherwise, tooltips do not show after the page refresh
+                            dbc.CardFooter(time_control),
                         ],
                     ),
                     width=8,
                 ),
             ]),
             dbc.Row([
-                dbc.Col(dbc.Card(dbc.CardBody(profile_graph)), width=4),
-                dbc.Col(dbc.Card(dbc.CardBody(footprint_map)), width=8),
-                # dbc.Col(footprint_map, width=8),
-            ])
+                dbc.Col(dbc.Card(dbc.CardBody(html.Div(profile_graph, id=PROFILE_GRAPH_CONTAINER_ID))), width=4),
+                dbc.Col(dbc.Card(dbc.CardBody(html.Div(footprint_map, id=FOOTPRINT_MAP_CONTAINER_ID))), width=8),
+            ]),
+            *tooltips,
         ],
         fluid=True,
     )

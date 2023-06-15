@@ -1,12 +1,13 @@
 import pkg_resources
-from dash import dcc, Dash
+from dash import dcc, Dash, callback
 from dash import html
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 
-from layout import get_app_data_stores, get_layout
+from layout import get_app_data_stores, get_layout, SHOW_TOOLTIPS_SWITCH_ID, get_installed_tooltip_ids
 
-from log import start_logging_callbacks
+from log import start_logging_callbacks, log_exception
+
 start_logging_callbacks(pkg_resources.resource_filename('log', 'requests.log'))
 
 import callbacks  # noq
@@ -78,6 +79,22 @@ server = app.server
 
 app.layout = get_dashboard_layout(app)
 app.title = 'IAGOS footprints'
+
+# once all the tooltips are setup, we may install the callback which switch them off and on:
+@callback(
+    [Output(tooltip_id, 'style') for tooltip_id in get_installed_tooltip_ids()],
+    Input(SHOW_TOOLTIPS_SWITCH_ID, 'value')
+)
+@log_exception
+def update_tooltips_visibility(show_tooltips):
+    # see: https://community.plotly.com/t/autohide-dbc-tooltips-not-working-as-expected/51579/14
+    # and: https://www.w3schools.com/css/css_display_visibility.asp
+    if show_tooltips:
+        custom_style = {'font-size': '0.8em'}
+    else:
+        custom_style = {'visibility': 'hidden'}
+    return [custom_style] * len(get_installed_tooltip_ids())
+
 
 # Launch the Dash application in development mode
 if __name__ == "__main__":
