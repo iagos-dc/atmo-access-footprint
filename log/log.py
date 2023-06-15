@@ -52,22 +52,29 @@ def log_callback(log_callback_context=True):
         def log_callback_wrapper(*args, **kwargs):
             #args_as_json = [json.dumps(arg) for arg in args]
             #kwargs_as_json = {kw: json.dumps(arg) for kw, arg in kwargs.items()}
-            d = {
-                'module': func.__module__,
-                'name': func.__qualname__,
-                'args': args,
-                'kwargs': kwargs,
-            }
-            if log_callback_context:
-                from dash import ctx
-                d['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids)
+            d = {}
+            try:
+                d = {
+                    'module': func.__module__,
+                    'name': func.__qualname__,
+                    'args': args,
+                    'kwargs': kwargs,
+                }
+                if log_callback_context:
+                    from dash import ctx
+                    d['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids)
 
-            import pandas as pd
-            timenow = pd.Timestamp.now()
-            #while str(timenow) in callback_args_by_time().keys():
-            while str(timenow) in callback_args_by_time():
-                timenow += pd.Timedelta(1, 'us')
-            callback_args_by_time()[str(timenow)] = d
+                import pandas as pd
+                timenow = pd.Timestamp.now()
+                #while str(timenow) in callback_args_by_time().keys():
+                while str(timenow) in callback_args_by_time():
+                    timenow += pd.Timedelta(1, 'us')
+                callback_args_by_time()[str(timenow)] = d
+            except Exception as e:
+                try:
+                    logger().exception(f'Could not log the request {d}')
+                except Exception:
+                    pass
             return func(*args, **kwargs)
         return log_callback_wrapper
     return _log_callback

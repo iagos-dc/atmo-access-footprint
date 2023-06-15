@@ -50,6 +50,7 @@ def get_footprint_img(airport_code, layer, profile_idx):
     Output(AIRPORT_SELECT_ID, 'value'),
     Input(FOOTPRINT_MAP_GRAPH_ID, 'clickData'),
 )
+@log_exception
 def update_airport_on_map_click(map_click_data):
     if map_click_data is not None and 'points' in map_click_data and len(map_click_data['points']) > 0:
         clicked_airport, = map_click_data['points']
@@ -116,6 +117,7 @@ def update_current_time_by_airport(
     prevent_initial_call=True,
 )
 @log_exception
+@log_callback(log_callback_context=False)
 def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_airport):
     if current_profile_idx_by_airport is None:
         raise dash.exceptions.PreventUpdate
@@ -392,7 +394,7 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
         .sel({'emission_inventory': emission_inventory})\
         .dropna('emission_inventory', how='all')
     emission_inventory_without_all_nans = list(COprofile_contrib['emission_inventory'].values)
-    print('emission_inventory_without_all_nans', emission_inventory_without_all_nans)
+    # print('emission_inventory_without_all_nans', emission_inventory_without_all_nans)
 
     x_max_softio = []
     softio_traces = []
@@ -491,6 +493,8 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
     Input(DATA_DOWNLOAD_BUTTON_ID, 'n_clicks'),
     prevent_initial_call=True,
 )
+@log_exception
+@log_callback(log_callback_context=False)
 def download_data_popup(data_download_button_click):
     popup = dbc.Modal(
         [
@@ -502,4 +506,4 @@ def download_data_popup(data_download_button_click):
         is_open=True,
     )
 
-    return popup #, ds_md.to_json(orient='index', date_format='iso')
+    return popup

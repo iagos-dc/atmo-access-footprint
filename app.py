@@ -1,10 +1,14 @@
+import pkg_resources
 from dash import dcc, Dash
 from dash import html
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 
-
 from layout import get_app_data_stores, get_layout
+
+from log import start_logging_callbacks
+start_logging_callbacks(pkg_resources.resource_filename('log', 'requests.log'))
+
 import callbacks  # noq
 
 
