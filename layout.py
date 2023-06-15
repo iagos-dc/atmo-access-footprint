@@ -89,7 +89,8 @@ FOOTPRINT_MAP_GRAPH_ID = 'footprint_map_graph'
 CO_GRAPH_ID = 'CO_graph'
 PROFILE_GRAPH_ID = 'profile_graph'
 
-GEO_REGIONS = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST', 'TOTAL']
+GEO_REGIONS_WITHOUT_TOTAL = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST']
+GEO_REGIONS = ['TOTAL'] + GEO_REGIONS_WITHOUT_TOTAL
 COLOR_HEX_BY_GFED4_REGION = {
     'BONA': '#3460ff',
     'TENA': '#ffab00',
@@ -105,11 +106,17 @@ COLOR_HEX_BY_GFED4_REGION = {
     'SEAS': '#00d800',
     'EQAS': '#00acff',
     'AUST': '#e5ffbb',
-    'TOTAL': {
-        'GFAS': '#ff0000',
-        'CEDS2': '#949602',
-        'ALL': '#c26202'
-    }
+}
+COLOR_HEX_BY_EMISSION_INVENTORY = {
+    'GFAS': '#ff0000',
+    'CEDS2': '#0000ff',
+    'ALL': '#7f007f',
+    #'CEDS2': '#949602',
+    #'ALL': '#c26202'
+}
+FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY = {
+    'CEDS2': '/',
+    'GFAS': '',
 }
 
 DEFAULT_AIRPORT = 'FRA'
@@ -224,6 +231,7 @@ def get_layout(title_bar):
         placeholder=_placeholder,
         maxLength=len(_placeholder),
         invalid=False,
+        readonly=True,
         style={'text-align': 'center'},
     )
 
@@ -321,12 +329,13 @@ def get_layout(title_bar):
         # style={'width': '100%', 'height': '100%'}
     )
 
-    graph_config = dict(NON_INTERACTIVE_GRAPH_CONFIG)
+    # graph_config = dict(NON_INTERACTIVE_GRAPH_CONFIG)
+    graph_config = dict(GRAPH_CONFIG)
     graph_config.update({
         'toImageButtonOptions': {
             'filename': 'CO-profile',
             'format': 'svg',
-            'height': 800,
+            'height': 900,
             'width': 600,
             # 'scale': 2,
         },

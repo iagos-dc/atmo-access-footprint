@@ -16,7 +16,8 @@ from log import log_exception, logger, log_callback
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
     NEXT_TIME_BUTTON_ID, REWIND_TIME_BUTTON_ID, FASTFORWARD_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
-    COLOR_HEX_BY_GFED4_REGION, airport_name_by_code, airports_df
+    COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, airport_name_by_code, airports_df, \
+    GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
@@ -146,10 +147,6 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
 @log_exception
 def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, current_profile_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
-    if emission_region != 'TOTAL':
-        emission_region = [emission_region, 'TOTAL']
-    else:
-        emission_region = ['TOTAL']
 
     CO_ts = get_CO_ts(airport_code)
     CO_ts = CO_ts\
@@ -167,12 +164,11 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     SOFTIO_ser = {}
     for ei in emission_inventory:
-        for reg in emission_region:
-            _SOFTIO_da = CO_ts['CO_contrib_mean'].sel({'emission_inventory': ei, 'region': reg}, drop=True)
-            SOFTIO_ser.setdefault(ei, {})[reg] = (
-                helper.insert_nan_into_timeseries_gaps(_SOFTIO_da.to_series()),
-                helper.insert_nan_into_timeseries_gaps(_SOFTIO_da['customdata'].to_series())
-            )
+        _SOFTIO_da = CO_ts['CO_contrib_mean'].sel({'emission_inventory': ei}, drop=True)
+        SOFTIO_ser[ei] = (
+            helper.insert_nan_into_timeseries_gaps(_SOFTIO_da.to_series()),
+            helper.insert_nan_into_timeseries_gaps(_SOFTIO_da['customdata'].to_series())
+        )
 
     nrows = 2 if len(SOFTIO_ser) > 0 else 1
     fig = make_subplots(rows=nrows, cols=1, shared_xaxes=True, vertical_spacing=0.02) #vertical_spacing=0.3)
@@ -205,55 +201,14 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     # add traces with SOFT-IO
     for ei in emission_inventory:
-        for reg in emission_region:
-            ser, customdata = SOFTIO_ser[ei][reg]
-
-            if USE_GL and len(ser) > USE_GL:
-                go_scatter = go.Scattergl
-            else:
-                go_scatter = go.Scatter
-
-            if reg != 'TOTAL':
-                color = COLOR_HEX_BY_GFED4_REGION.get(reg)
-            else:
-                color = COLOR_HEX_BY_GFED4_REGION['TOTAL'].get(ei)
-            if color is not None:
-                trace_kwargs = {
-                    'marker_color': color,
-                    'line_color': color
-                }
-            else:
-                trace_kwargs = {}
-
-            trace = go_scatter(
-                x=ser.index.values,
-                y=ser.values,
-                customdata=customdata.values,
-                mode='lines+markers',
-                name=f'{ei} {reg}',
-                legendgroup='SOFT-IO',
-                legendgrouptitle_text='SOFT-IO',
-                marker={'size': 3},
-                **trace_kwargs
-            )
-
-            fig.add_trace(trace, row=2, col=1)
-
-    if len(emission_inventory) > 1:
-        emission_inventory_it = iter(emission_inventory)
-        ei = next(emission_inventory_it)
-        ser, customdata = SOFTIO_ser[ei]['TOTAL']
-        for ei in emission_inventory_it:
-            ser2, customdata2 = SOFTIO_ser[ei]['TOTAL']
-            ser = ser + ser2
-            customdata.update(customdata2)
+        ser, customdata = SOFTIO_ser[ei]
 
         if USE_GL and len(ser) > USE_GL:
             go_scatter = go.Scattergl
         else:
             go_scatter = go.Scatter
 
-        color = COLOR_HEX_BY_GFED4_REGION['TOTAL']['ALL']
+        color = COLOR_HEX_BY_EMISSION_INVENTORY.get(ei)
         if color is not None:
             trace_kwargs = {
                 'marker_color': color,
@@ -267,11 +222,40 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
             y=ser.values,
             customdata=customdata.values,
             mode='lines+markers',
-            name='<br>+'.join([f'{ei} TOTAL' for ei in emission_inventory]),
+            name=f'{ei} {emission_region}',
             legendgroup='SOFT-IO',
             legendgrouptitle_text='SOFT-IO',
             marker={'size': 3},
             **trace_kwargs
+        )
+
+        fig.add_trace(trace, row=2, col=1)
+
+    if len(emission_inventory) > 1:
+        emission_inventory_it = iter(emission_inventory)
+        ei = next(emission_inventory_it)
+        ser, customdata = SOFTIO_ser[ei]
+        for ei in emission_inventory_it:
+            ser2, customdata2 = SOFTIO_ser[ei]
+            ser = ser + ser2
+            customdata.update(customdata2)
+
+        if USE_GL and len(ser) > USE_GL:
+            go_scatter = go.Scattergl
+        else:
+            go_scatter = go.Scatter
+
+        color = COLOR_HEX_BY_EMISSION_INVENTORY['ALL']
+        trace = go_scatter(
+            x=ser.index.values,
+            y=ser.values,
+            customdata=customdata.values,
+            mode='lines+markers',
+            name='<br>+'.join([f'{ei} {emission_region}' for ei in emission_inventory]),
+            legendgroup='SOFT-IO',
+            legendgrouptitle_text='SOFT-IO',
+            line={'color': color},
+            marker={'size': 3, 'color': color},
         )
 
         fig.add_trace(trace, row=2, col=1)
@@ -331,16 +315,11 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
     Output(PROFILE_GRAPH_ID, 'figure'),
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
-    Input(EMISSION_REGION_SELECT_ID, 'value'),
     Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
 )
 @log_exception
-def update_COprofile_fig(airport_code, emission_inventory, emission_region, current_profile_idx_by_airport):
+def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_by_airport):
     emission_inventory = sorted(emission_inventory)
-    if emission_region != 'TOTAL':
-        emission_region = [emission_region, 'TOTAL']
-    else:
-        emission_region = ['TOTAL']
 
     if current_profile_idx_by_airport is None or airport_code not in current_profile_idx_by_airport:
         raise dash.exceptions.PreventUpdate
@@ -379,12 +358,10 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
     COclimat_trace = go.Scatter(
         x=clim_ds['CO_mean_5y'].values,
         y=y_vals,
-        # error_x=go.scatter.ErrorX(array=_ds.CO_std_5y.values, symmetric=True, type='data'),
         mode='lines',
         name=f'5y mean',
         legendgroup='IAGOS',
         legendgrouptitle_text='IAGOS',
-        # marker={'color': color},
         line={'color': 'black', 'dash': 'dot'},
     )
     COclimat_trace_1 = go.Scatter(
@@ -393,11 +370,7 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         mode='lines',
         line=dict(width=0),
         name=f'5y std 1',
-        # legendgroup='IAGOS',
-        # legendgrouptitle_text='IAGOS',
         showlegend=False,
-        # marker={'color': color},
-        # line={'color': color},
     )
     x_vals = clim_ds['CO_mean_5y'].values + clim_ds['CO_std_5y'].values
     x_max_2 = np.nanmax(x_vals) if len(x_vals) > 0 else np.nan
@@ -409,56 +382,78 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         name=f'5y std',
         legendgroup='IAGOS',
         legendgrouptitle_text='IAGOS',
-        # showlegend=False,
         fillcolor='rgba(68, 68, 68, 0.3)',
-        fill='tonexty',  # marker={'color': color},
-        # line={'color': color},
+        fill='tonexty',
     )
 
     # prepare data and traces for SOFT-IO
+    COprofile_contrib = CO_profile_ds['COprofile_contrib_mean']\
+        .sel({'emission_inventory': emission_inventory})\
+        .dropna('emission_inventory', how='all')
+    emission_inventory_without_all_nans = list(COprofile_contrib['emission_inventory'].values)
+    print('emission_inventory_without_all_nans', emission_inventory_without_all_nans)
+
     x_max_softio = []
     softio_traces = []
-    for ei in emission_inventory:
-        for reg in emission_region:
-            x_vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': reg}).values
-            if len(x_vals) > 0:
-                x_max_softio.append(np.nanmax(x_vals))
-            trace = go.Scatter(
-                x=x_vals,
-                y=CO_profile_ds['height'].values,
-                # mode='lines+markers',
-                mode='lines',
-                name=f'{ei} {reg}',
-                legendgroup='SOFT-IO',
-                legendgrouptitle_text='SOFT-IO',
-                # mode='lines',
-                # marker={'color': color},
-                # line={'color': color},
-            )
-            softio_traces.append(trace)
-    if len(emission_inventory) > 1:
-        emission_inventory_it = iter(emission_inventory)
-        ei = next(emission_inventory_it)
-        x_vals = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
-        for ei in emission_inventory_it:
-            x_vals2 = CO_profile_ds['COprofile_contrib_mean'].sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
-            x_vals = x_vals + x_vals2
+
+    # SOFT-IO TOTAL
+    if len(emission_inventory_without_all_nans) > 0:
+        x_vals = 0
+        for ei in emission_inventory_without_all_nans:
+            x_vals2 = COprofile_contrib.sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
+            x_vals = x_vals + np.nan_to_num(x_vals2)
         if len(x_vals) > 0:
             x_max_softio.append(np.nanmax(x_vals))
+
+        color = COLOR_HEX_BY_EMISSION_INVENTORY['ALL']
+        if color is not None:
+            trace_kwargs = {
+                'marker_color': color,
+                'line_color': color
+            }
+        else:
+            trace_kwargs = {}
+
         trace = go.Scatter(
             x=x_vals,
             y=CO_profile_ds['height'].values,
-            # mode='lines+markers',
-            mode='lines',
-            # name=f'{"+".join(emission_inventory)} TOTAL',
-            name='<br>+'.join([f'{ei} TOTAL' for ei in emission_inventory]),
-            legendgroup='SOFT-IO',
-            legendgrouptitle_text='SOFT-IO',
-            # mode='lines',
-            # marker={'color': color},
-            # line={'color': color},
+            mode='lines+markers',
+            marker={'size': 3},
+            name='<br>+'.join([f'{ei} TOTAL' for ei in emission_inventory_without_all_nans]),
+            legendgroup='SOFT-IO TOTAL',
+            legendgrouptitle_text='SOFT-IO TOTAL',
+            **trace_kwargs
         )
         softio_traces.append(trace)
+
+    # SOFT-IO by regions
+    for ei in emission_inventory_without_all_nans:
+        for reg in GEO_REGIONS_WITHOUT_TOTAL:
+            x_vals = COprofile_contrib.sel({'emission_inventory': ei, 'region': reg}).values
+
+            # TODO: do sth to see hover better, e.g. ignore values < 0.1 in the hover:
+            x_vals = np.nan_to_num(x_vals)  # to prevent the peculair behavoir of plotly fill area plots ???
+
+            if len(x_vals) > 0:
+                x_max_softio.append(np.nanmax(x_vals))
+
+            color = COLOR_HEX_BY_GFED4_REGION[reg]
+            trace = go.Scatter(
+                x=x_vals,
+                y=CO_profile_ds['height'].values,
+                mode='lines',
+                name=f'{ei} {reg}',
+                legendgroup=f'SOFT-IO {ei}',
+                legendgrouptitle_text=f'SOFT-IO {ei}',
+                stackgroup='one',
+                orientation='h',
+                line={'color': color, 'width': 0},
+                fillpattern={
+                    'shape': FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY.get(ei, 'x'),
+                    'fgopacity': 0.3
+                }
+            )
+            softio_traces.append(trace)
 
     x_max = np.nanmax([50, x_max_1, x_max_2] + x_max_softio)
 
@@ -467,8 +462,8 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
 
     # build figure
     fig = go.Figure([COprofile_trace, COclimat_trace, COclimat_trace_1, COclimat_trace_2] + softio_traces)
-    fig.update_xaxes(title='CO (ppb)', range=[-x_max * 0.05, x_max * 1.05], fixedrange=True)
-    fig.update_yaxes(title='altitude (m a.s.l.)', range=[-100, 12e3], fixedrange=True)
+    fig.update_xaxes(title='CO (ppb)', range=[-x_max * 0.05, x_max * 1.05], fixedrange=False)
+    fig.update_yaxes(title='altitude (m a.s.l.)', range=[-100, 12e3], fixedrange=False)
     fig.update_layout(
         # width=400,
         height=600,
@@ -479,12 +474,12 @@ def update_COprofile_fig(airport_code, emission_inventory, emission_region, curr
         # uirevision=airport_code,
         legend={
             'groupclick': 'toggleitem',
-            'tracegroupgap': 40,
             'traceorder': 'grouped',
+            'orientation': 'v',
         },
         showlegend=True,
         autosize=False,
-        margin={'autoexpand': True, 'r': 0, 't': 105, 'l': 0, 'b': 0},
+        margin={'autoexpand': True, 'r': 180, 't': 105, 'l': 0, 'b': 0},
     )
 
     return fig
