@@ -88,6 +88,7 @@ FASTFORWARD_TIME_BUTTON_ID = 'fastforward_time_button'
 FOOTPRINT_MAP_GRAPH_ID = 'footprint_map_graph'
 CO_GRAPH_ID = 'CO_graph'
 PROFILE_GRAPH_ID = 'profile_graph'
+DATA_DOWNLOAD_POPUP_ID = 'data_download_popup'
 
 GEO_REGIONS_WITHOUT_TOTAL = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST']
 GEO_REGIONS = ['TOTAL'] + GEO_REGIONS_WITHOUT_TOTAL
@@ -110,9 +111,8 @@ COLOR_HEX_BY_GFED4_REGION = {
 COLOR_HEX_BY_EMISSION_INVENTORY = {
     'GFAS': '#ff0000',
     'CEDS2': '#0000ff',
-    'ALL': '#7f007f',
-    #'CEDS2': '#949602',
-    #'ALL': '#c26202'
+    'ALL': '#9834eb',
+    #'ALL': 'rgba(152, 52, 235, 0.3)',
 }
 FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY = {
     'CEDS2': '/',
@@ -170,7 +170,7 @@ def get_airports_map(airports_df):
     fig.update_layout(
         mapbox_style=DEFAULT_MAPBOX_STYLE,
         margin={'autoexpand': True, 'r': 0, 't': 60, 'l': 0, 'b': 0},
-        height=600,
+        height=650,
         autosize=True,
         # autosize=False,
         # selectdirection='h', ???
@@ -190,7 +190,7 @@ def get_airports_map(airports_df):
     )
 
 
-def get_layout(title_bar):
+def get_layout(title_bar, app):
     def get_form_item(label, input_component):
         form_item = dbc.Row([
             dbc.Label(label, width=4),
@@ -205,22 +205,23 @@ def get_layout(title_bar):
             for short_name, long_name in airport_name_by_code.items()
         ],
         value=DEFAULT_AIRPORT,
+        size='lg',
     )
 
     vertical_layer_radio = dbc.RadioItems(
         id=VERTICAL_LAYER_RADIO_ID,
-        options=[
-            {'label': 'Lower troposphere (< 3km)', 'value': 'LT'},
-            {'label': 'Free troposphere (3km - 8km)', 'value': 'FT'},
-            {'label': 'Upper troposphere (> 8km)', 'value': 'UT'},
-        ],
         # options=[
-        #     {'label': 'LT (< 3km)', 'value': 'LT'},
-        #     {'label': 'FT (3km - 8km)', 'value': 'FT'},
-        #     {'label': 'UT (> 8km)', 'value': 'UT'},
+        #     {'label': 'Lower troposphere (< 3km)', 'value': 'LT'},
+        #     {'label': 'Free troposphere (3km - 8km)', 'value': 'FT'},
+        #     {'label': 'Upper troposphere (> 8km)', 'value': 'UT'},
         # ],
+        options=[
+            {'label': 'LT (< 3km)', 'value': 'LT'},
+            {'label': 'FT (3km - 8km)', 'value': 'FT'},
+            {'label': 'UT (> 8km)', 'value': 'UT'},
+        ],
         value='LT',
-        inline=False,
+        inline=True,
     )
 
     _placeholder = 'YYYY-MM-DD HH:MM'
@@ -233,6 +234,7 @@ def get_layout(title_bar):
         invalid=False,
         readonly=True,
         style={'text-align': 'center'},
+        size='lg',
     )
 
     emission_inventory_checklist = dbc.Checklist(
@@ -252,6 +254,7 @@ def get_layout(title_bar):
             for region in GEO_REGIONS
         ],
         value='TOTAL',
+        size='lg',
     )
 
     data_download_button = dbc.Button(
@@ -259,54 +262,63 @@ def get_layout(title_bar):
         n_clicks=0,
         color='primary', type='submit',
         style={'font-weight': 'bold'},
-        children='Data download'
+        children='Data download',
+        # size='lg',
     )
 
     rewind_time_button = dbc.Button(
         id=REWIND_TIME_BUTTON_ID,
         n_clicks=0,
         color='primary', type='submit',
-        children=html.Div(className='bi bi-chevron-double-left')
+        children=html.Div(className='bi bi-chevron-double-left'),
     )
     previous_time_button = dbc.Button(
         id=PREVIOUS_TIME_BUTTON_ID,
         n_clicks=0,
         color='primary', type='submit',
-        children=html.Div(className='bi bi-chevron-left')
+        children=html.Div(className='bi bi-chevron-left'),
     )
     next_time_button = dbc.Button(
         id=NEXT_TIME_BUTTON_ID,
         n_clicks=0,
         color='primary', type='submit',
-        children=html.Div(className='bi bi-chevron-right')
+        children=html.Div(className='bi bi-chevron-right'),
     )
     fastforward_time_button = dbc.Button(
         id=FASTFORWARD_TIME_BUTTON_ID,
         n_clicks=0,
         color='primary', type='submit',
-        children=html.Div(className='bi bi-chevron-double-right')
+        children=html.Div(className='bi bi-chevron-double-right'),
     )
+
+    # time_selection_group = dbc.Row(
+    #     [
+    #         dbc.Label('Time', width=4),
+    #         # TODO: do it in one Div (see how it reacts to window resize)
+    #         dbc.Col(rewind_time_button, width='auto'),
+    #         dbc.Col(previous_time_button, width='auto'),
+    #         dbc.Col(time_selection, width='auto'),
+    #         dbc.Col(next_time_button, width='auto'),
+    #         dbc.Col(fastforward_time_button, width='auto'),
+    #     ],
+    #     justify='between',
+    #     class_name='g-0',  # no-gutters
+    # )
 
     options_form = dbc.Form(
         [
             get_form_item('Airport', airport_selection),
             get_form_item('Vertical layer', vertical_layer_radio),
-            dbc.Row(
-                [
-                    dbc.Label('Time', width=4),
-                    # TODO: do it in one Div (see how it reacts to window resize)
-                    dbc.Col(rewind_time_button, width='auto'),
-                    dbc.Col(previous_time_button, width='auto'),
-                    dbc.Col(time_selection, width='auto'),
-                    dbc.Col(next_time_button, width='auto'),
-                    dbc.Col(fastforward_time_button, width='auto'),
-                ],
-                justify='between',
-                class_name='g-0',  # no-gutters
-            ),
+            # time_selection_group,
             get_form_item(html.Div(['CO contribution', html.Br(), '(emission inventory)']), emission_inventory_checklist),
             get_form_item(html.Div(['CO contribution', html.Br(), '(emission region)']), emission_region_selection),
-            dbc.Row(dbc.Col(data_download_button, width='auto'), justify='center'),
+            dbc.Row(
+                html.Img(
+                    src=app.get_asset_url('GFED-regions.png'),
+                    style={'margin-bottom': '24px', 'margin-top': '24px'},
+                    # style={'float': 'right', 'height': '80px', 'margin-top': '10px'},
+                ),
+            ),
         ],
     )
 
@@ -366,11 +378,47 @@ def get_layout(title_bar):
         ]),
     ]
 
+    time_selection_group = dbc.InputGroup(
+        [
+            dbc.InputGroupText('Time'),
+            rewind_time_button,
+            previous_time_button,
+            time_selection,
+            next_time_button,
+            fastforward_time_button,
+        ],
+        size='lg',
+    )
+
+    emission_region_selection_group = dbc.InputGroup(
+        [
+            dbc.InputGroupText('Emission region'),
+            # emission_region_selection,
+        ],
+        size='lg',
+    )
+
+    time_and_emission_region_control = dbc.Row(
+        [
+            dbc.Col(time_selection_group, width='auto'),
+            # dbc.Col(emission_region_selection_group, width='auto')
+        ],
+        justify='left',
+    )
+
     layout_body = dbc.Container(
         [
             dbc.Row([
-                dbc.Col(dbc.Card(dbc.CardBody(options_form)), width=4),
-                dbc.Col(dbc.Card(dbc.CardBody(ts_graph)), width=8),
+                dbc.Col(dbc.Card([dbc.CardBody(options_form), dbc.CardFooter(dbc.Row(dbc.Col(data_download_button, width='auto'), justify='center'))]), width=4),
+                dbc.Col(
+                    dbc.Card(
+                        [
+                            dbc.CardBody(dbc.Row(ts_graph)),
+                            dbc.CardFooter(time_and_emission_region_control),
+                        ],
+                    ),
+                    width=8,
+                ),
             ]),
             dbc.Row([
                 dbc.Col(dbc.Card(dbc.CardBody(profile_graph)), width=4),
@@ -387,4 +435,6 @@ def get_layout(title_bar):
         dbc.CardHeader(footer)
     ])
 
-    return layout
+    data_download_popup = html.Div(id=DATA_DOWNLOAD_POPUP_ID)
+
+    return html.Div([layout, data_download_popup])

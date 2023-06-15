@@ -7,6 +7,7 @@ import pandas as pd
 import xarray as xr
 import dash
 from dash import Output, Input, State, Patch, callback
+import dash_bootstrap_components as dbc
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
@@ -17,7 +18,7 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     NEXT_TIME_BUTTON_ID, REWIND_TIME_BUTTON_ID, FASTFORWARD_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
     COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, airport_name_by_code, airports_df, \
-    GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY
+    GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, DATA_DOWNLOAD_POPUP_ID
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
@@ -466,7 +467,7 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
     fig.update_yaxes(title='altitude (m a.s.l.)', range=[-100, 12e3], fixedrange=False)
     fig.update_layout(
         # width=400,
-        height=600,
+        height=650,
         title={
             'text': f'Profile of CO measurements by IAGOS and<br>modelled CO contributions by SOFT-IO (ppb)'
                     f'<br>over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) on <b>{curr_time}</b>',
@@ -483,3 +484,22 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
     )
 
     return fig
+
+
+@callback(
+    Output(DATA_DOWNLOAD_POPUP_ID, 'children'),
+    Input(DATA_DOWNLOAD_BUTTON_ID, 'n_clicks'),
+    prevent_initial_call=True,
+)
+def download_data_popup(data_download_button_click):
+    popup = dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle('Data download will be available soon')),
+            # dbc.ModalBody(children='Data download will be available soon.'),
+        ],
+        id="modal-xl",
+        size="xl",
+        is_open=True,
+    )
+
+    return popup #, ds_md.to_json(orient='index', date_format='iso')

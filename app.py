@@ -50,7 +50,7 @@ def get_dashboard_layout(app):
         ]
     )
 
-    app_layout = get_layout(title_and_logo_bar)
+    app_layout = get_layout(title_and_logo_bar, app)
 
     layout = html.Div(
         id='app-container-div',
@@ -73,7 +73,7 @@ app = Dash(
 server = app.server
 
 app.layout = get_dashboard_layout(app)
-app.title = 'IAGOS footprint'
+app.title = 'IAGOS footprints'
 
 # Launch the Dash application in development mode
 if __name__ == "__main__":
