@@ -88,12 +88,31 @@ def regrid(da, upsampling_resol_factor=None, proj=3857, regrid_resol=None, is_pr
     return da_regridded, get_spatial_extent(da_regridded, proj_tr_inv)
 
 
+# source: https://stackoverflow.com/questions/46891914/control-mapbox-extent-in-plotly-python-api
+def _calc_zoom(min_lat, max_lat, min_lon, max_lon):
+    width_y = max_lat - min_lat
+    width_x = max_lon - min_lon
+    zoom_y = -1.446 * np.log(width_y) + 7.2753
+    zoom_x = -1.415 * np.log(width_x) + 8.7068
+    return min(np.around(zoom_y, decimals=2), np.around(zoom_x, decimals=2))
+
+
 def get_footprint_viz(da, threshold=0.003):
+    lon, lat = da.geo.get_lon_lat_label()
+
     # BUG fix: must avoid poles - otherwise dash/plotly does not want to refresh the image layer on the map
     # lat in [-85, 85] is because of the range of web Mercator projection
-    da = da.sel(latitude=slice(-85, 85))
+    da = da.sel({lat: slice(-85, 85)})
 
     da = trim_small_values(da, threshold=threshold)
+
+    # get spatial extent
+    (min_lon, max_lon), (min_lat, max_lat) = da[lon].values[[0, -1]], da[lat].values[[0, -1]]
+    try:
+        zoom = _calc_zoom(min_lat, max_lat, min_lon, max_lon)
+    except Exception:
+        zoom = 1
+
     agg, coordinates = regrid(da, upsampling_resol_factor=(10, 10), is_proj_rectilinear=True)
     im1 = tf.shade(agg, cmap=colorcet.CET_L17, how='linear', alpha=0)
     agg2 = agg - agg.min()
@@ -103,8 +122,17 @@ def get_footprint_viz(da, threshold=0.003):
     img = im[::-1].to_pil()
 
     mapbox_layer = {
-        "sourcetype": "image",
-        "source": img,
-        "coordinates": coordinates,
+        'mapbox': {
+            'center': {
+                'lon': (min_lon + max_lon) / 2,
+                'lat': (min_lat + max_lat) / 2,
+            },
+            'zoom': zoom,
+            'layers': [{
+                'sourcetype': 'image',
+                'source': img,
+                'coordinates': coordinates,
+            }]
+        }
     }
     return mapbox_layer

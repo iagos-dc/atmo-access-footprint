@@ -93,6 +93,8 @@ PROFILE_GRAPH_ID = 'profile_graph'
 PROFILE_GRAPH_CONTAINER_ID = 'profile_graph_container'
 SHOW_TOOLTIPS_SWITCH_ID = 'show_tooltips_switch_id'
 DATA_DOWNLOAD_POPUP_ID = 'data_download_popup'
+ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID = 'only_significant_regions_checkbox'
+ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID = 'only_significant_regions_percentage'
 
 GEO_REGIONS_WITHOUT_TOTAL = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST']
 GEO_REGIONS = ['TOTAL'] + GEO_REGIONS_WITHOUT_TOTAL
@@ -163,6 +165,74 @@ def get_tooltip(tooltip_text, target, **kwargs):
         target=target,
         **tooltip_kwargs
     )
+
+
+def _get_watermark_size(fig):
+    if not isinstance(fig, dict):
+        fig = fig.to_dict()
+
+    default_size = 75
+    ref_height = 500
+    ref_width = 1000
+
+    layout = fig.get('layout')
+    if layout is None:
+        return default_size
+    height = layout.get('height')
+    if height is not None:
+        return default_size * height / ref_height
+    width = layout.get('width', ref_width)
+    return default_size * width / ref_width
+
+
+def _get_fig_center(fig):
+    if not isinstance(fig, dict):
+        fig = fig.to_dict()
+
+    default_center_by_axis = {
+        'xaxis': .5,
+        'yaxis': .5,
+    }
+    def_center = (default_center_by_axis['xaxis'], default_center_by_axis['yaxis'])
+
+    layout = fig.get('layout')
+    if layout is None:
+        return def_center
+
+    def get_axis_domain_center(axis):
+        _axis = layout.get(axis)
+        if _axis is None:
+            return default_center_by_axis[axis]
+        return sum(_axis.get('domain', (0, 1))) / 2
+
+    x = get_axis_domain_center('xaxis')
+    y = get_axis_domain_center('yaxis')
+    return x, y
+
+
+def add_watermark(fig, textangle=-30, size=None):
+    if size is None:
+        size = _get_watermark_size(fig)
+    #x, y = _get_fig_center(fig)
+    x, y = 0.5, 0.5
+
+    annotations = [dict(
+        name="watermark",
+        text="ATMO-ACCESS",
+        textangle=textangle,
+        opacity=0.05,
+        font=dict(color="black", size=size),
+        xref="paper",
+        yref="paper",
+        #xref='x domain',
+        #yref='y domain',
+        x=x,
+        y=y,
+        showarrow=False,
+    )]
+    fig.update_layout(annotations=annotations)
+    return fig
+
 
 
 def get_app_tooltips():
@@ -281,7 +351,7 @@ def get_airports_map(airports_df):
 
     return dcc.Graph(
         id=FOOTPRINT_MAP_GRAPH_ID,
-        figure=fig,
+        figure=add_watermark(fig),
         config=GRAPH_MAP_CONFIG,
     )
 
@@ -330,7 +400,7 @@ def get_layout(title_bar, app):
         type='text',
         debounce=True,
         placeholder=_placeholder,
-        maxLength=len(_placeholder),
+        maxlength=len(_placeholder),
         invalid=False,
         readonly=True,
         # persistence=True,
@@ -503,13 +573,32 @@ def get_layout(title_bar, app):
         ],
         size='lg',
     )
+    time_control = dbc.Row(dbc.Col(time_selection_group, width='auto'), justify='left')
 
-    time_control = dbc.Row(
+    softio_cutoff_group = dbc.InputGroup(
         [
-            dbc.Col(time_selection_group, width='auto'),
+            dbc.InputGroupText(
+                dbc.Checkbox(
+                    id=ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID,
+                    value=True,
+                    persistence=True,
+                    persistence_type='session',
+                ),
+            ),
+            dbc.InputGroupText('Show only regions with >'),
+            dbc.Input(
+                id=ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID,
+                type='number',
+                maxlength=3,
+                min=0, max=100, value=1,
+                persistence=True, persistence_type='session',
+                debounce=True,
+            ),
+            dbc.InputGroupText('% of the total contribution'),
         ],
-        justify='left',
+        size='lg',
     )
+    softio_cutoff_controller = dbc.Row(dbc.Col(softio_cutoff_group, width='auto'), justify='left')
 
     tooltips = get_app_tooltips()
 
@@ -543,7 +632,13 @@ def get_layout(title_bar, app):
                 ),
             ]),
             dbc.Row([
-                dbc.Col(dbc.Card(dbc.CardBody(html.Div(profile_graph, id=PROFILE_GRAPH_CONTAINER_ID))), width=4),
+                dbc.Col(
+                    dbc.Card([
+                        dbc.CardBody(html.Div(profile_graph, id=PROFILE_GRAPH_CONTAINER_ID)),
+                        dbc.CardFooter(softio_cutoff_controller),
+                    ]),
+                    width=4
+                ),
                 dbc.Col(dbc.Card(dbc.CardBody(html.Div(footprint_map, id=FOOTPRINT_MAP_CONTAINER_ID))), width=8),
             ]),
             *tooltips,

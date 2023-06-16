@@ -19,7 +19,7 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
     COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, airport_name_by_code, airports_df, \
     GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, \
-    DATA_DOWNLOAD_POPUP_ID
+    DATA_DOWNLOAD_POPUP_ID, add_watermark, ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
@@ -38,7 +38,7 @@ def get_footprint_img(airport_code, layer, profile_idx):
         # print(da.sum().item())
         return footprint_viz.get_footprint_viz(da)
     else:
-        return None
+        return {}
 
 
 # Begin of callback definitions and their helper routines.
@@ -127,6 +127,8 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
     except KeyError:
         raise dash.exceptions.PreventUpdate
 
+    dash_ctx = list(dash.ctx.triggered_prop_ids.values())
+
     mapbox_layer = get_footprint_img(airport_code, vertical_layer, profile_idx)
 
     fig = Patch()
@@ -136,7 +138,14 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
             f'<br>from <b>{vertical_layer}</b> layer over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) ' \
             f'on <b>{pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}</b>'
     fig['layout']['title'] = title
-    fig['layout']['mapbox']['layers'] = [mapbox_layer]
+
+    # set layer with footprint
+    if AIRPORT_SELECT_ID in dash_ctx:
+        # change center and zoom only when airport has changed
+        helper.patch_update(fig['layout'], mapbox_layer)
+    else:
+        if 'mapbox' in mapbox_layer and 'layers' in mapbox_layer['mapbox']:
+            fig['layout']['mapbox']['layers'] = mapbox_layer['mapbox']['layers']
     return fig
 
 
@@ -312,7 +321,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
 
     # print(fig)
 
-    return fig
+    return add_watermark(fig)
 
 
 @callback(
@@ -320,9 +329,17 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
     Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
+    Input(ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, 'value'),
+    Input(ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID, 'value'),
 )
 @log_exception
-def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_by_airport):
+def update_COprofile_fig(
+        airport_code,
+        emission_inventory,
+        current_profile_idx_by_airport,
+        only_significant_regions,
+        only_significat_regions_percentage,
+):
     emission_inventory = sorted(emission_inventory)
 
     if current_profile_idx_by_airport is None or airport_code not in current_profile_idx_by_airport:
@@ -402,12 +419,9 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
 
     # SOFT-IO TOTAL
     if len(emission_inventory_without_all_nans) > 0:
-        x_vals = 0
-        for ei in emission_inventory_without_all_nans:
-            x_vals2 = COprofile_contrib.sel({'emission_inventory': ei, 'region': 'TOTAL'}).values
-            x_vals = x_vals + np.nan_to_num(x_vals2)
-        if len(x_vals) > 0:
-            x_max_softio.append(np.nanmax(x_vals))
+        softio_total = COprofile_contrib.sel({'region': 'TOTAL'}).sum('emission_inventory')
+        if len(softio_total.values) > 0:
+            x_max_softio.append(np.nanmax(softio_total.values))
 
         color = COLOR_HEX_BY_EMISSION_INVENTORY['ALL']
         if color is not None:
@@ -419,7 +433,7 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
             trace_kwargs = {}
 
         trace = go.Scatter(
-            x=x_vals,
+            x=softio_total.values,
             y=CO_profile_ds['height'].values,
             mode='lines+markers',
             marker={'size': 3},
@@ -432,8 +446,17 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
 
     # SOFT-IO by regions
     for ei in emission_inventory_without_all_nans:
-        for reg in GEO_REGIONS_WITHOUT_TOTAL:
-            x_vals = COprofile_contrib.sel({'emission_inventory': ei, 'region': reg}).values
+        COprofile_contrib_for_ei = COprofile_contrib\
+            .sel({'emission_inventory': ei})\
+            .drop_sel({'region': 'TOTAL'})
+        if only_significant_regions and only_significat_regions_percentage is not None:
+            # ignore regions which contributes < 1% than SOFT-IO total contribution from all emission inventories
+            COprofile_contrib_for_ei = COprofile_contrib_for_ei\
+                .where(COprofile_contrib_for_ei > softio_total * (only_significat_regions_percentage / 100))\
+                .dropna('region', how='all')
+
+        for reg in COprofile_contrib_for_ei['region'].values:
+            x_vals = COprofile_contrib_for_ei.sel({'region': reg}).values
 
             # TODO: do sth to see hover better, e.g. ignore values < 0.1 in the hover:
             x_vals = np.nan_to_num(x_vals)  # to prevent the peculair behavoir of plotly fill area plots ???
@@ -466,7 +489,7 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
 
     # build figure
     fig = go.Figure([COprofile_trace, COclimat_trace, COclimat_trace_1, COclimat_trace_2] + softio_traces)
-    fig.update_xaxes(title='CO (ppb)', range=[-x_max * 0.05, x_max * 1.05], fixedrange=False)
+    fig.update_xaxes(title='CO (ppb)', range=[0, x_max * 1.05], fixedrange=False)  # min_range: -x_max * 0.05
     fig.update_yaxes(title='altitude (m a.s.l.)', range=[-100, 12e3], fixedrange=False)
     fig.update_layout(
         # width=400,
@@ -484,9 +507,10 @@ def update_COprofile_fig(airport_code, emission_inventory, current_profile_idx_b
         showlegend=True,
         autosize=False,
         margin={'autoexpand': True, 'r': 180, 't': 105, 'l': 0, 'b': 0},
+        uirevision=airport_code,
     )
 
-    return fig
+    return add_watermark(fig, textangle=-60, size=75)
 
 
 @callback(

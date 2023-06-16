@@ -100,3 +100,11 @@ def insert_nan_into_timeseries_gaps(timeseries, gap=np.timedelta64(4, 'D'), fill
     dtime = timeseries.index.to_series().diff().values[1:]
     nan_idx, = np.nonzero(dtime > gap)
     return insert_nan(timeseries, nan_idx, fill_value=fill_value)
+
+
+def patch_update(patch, dic):
+    for k, v in dic.items():
+        if not isinstance(v, dict):
+            patch[k] = v
+        else:
+            patch_update(patch[k], v)
