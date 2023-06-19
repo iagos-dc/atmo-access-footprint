@@ -19,7 +19,8 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
     COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, airport_name_by_code, airports_df, \
     GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, \
-    DATA_DOWNLOAD_POPUP_ID, add_watermark, ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID
+    DATA_DOWNLOAD_POPUP_ID, add_watermark, ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID, \
+    RESIDENCE_TIME_SCALE_RADIO_ID, RESIDENCE_TIME_CUTOFF_RADIO_ID
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
@@ -28,15 +29,17 @@ from footprint_data_access import get_residence_time, get_flight_id_and_profile_
 USE_GL = 500
 
 
-@functools.lru_cache(maxsize=128)
-def get_footprint_img(airport_code, layer, profile_idx):
+@functools.lru_cache(maxsize=32)
+def get_footprint_img(airport_code, layer, profile_idx, color_scale_transform=(np.log, np.exp), residence_time_cutoff=None):
+    if residence_time_cutoff is None:
+        residence_time_cutoff = 1e-3
     # print(f'get_footprint_img({airport_code}, {layer}, {profile_idx})')
     flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
     res_time_per_km2 = get_residence_time(flight_id, profile, layer)
     if res_time_per_km2 is not None:
         da = res_time_per_km2.load()
         # print(da.sum().item())
-        return footprint_viz.get_footprint_viz(da)
+        return footprint_viz.get_footprint_viz(da, color_scale_transform=color_scale_transform, residence_time_cutoff=residence_time_cutoff)
     else:
         return {}
 
@@ -115,11 +118,16 @@ def update_current_time_by_airport(
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(VERTICAL_LAYER_RADIO_ID, 'value'),
     Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
+    Input(RESIDENCE_TIME_SCALE_RADIO_ID, 'value'),
+    Input(RESIDENCE_TIME_CUTOFF_RADIO_ID, 'value'),
     prevent_initial_call=True,
 )
 @log_exception
 @log_callback(log_callback_context=False)
-def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_airport):
+def update_footprint_map(
+        airport_code, vertical_layer, current_profile_idx_by_airport,
+        residence_time_scale, residence_time_cutoff,
+):
     if current_profile_idx_by_airport is None:
         raise dash.exceptions.PreventUpdate
     try:
@@ -129,23 +137,34 @@ def update_footprint_map(airport_code, vertical_layer, current_profile_idx_by_ai
 
     dash_ctx = list(dash.ctx.triggered_prop_ids.values())
 
-    mapbox_layer = get_footprint_img(airport_code, vertical_layer, profile_idx)
+    if residence_time_scale == 'lin':
+        color_scale_transform = (lambda x: x, lambda x: x)
+    elif residence_time_scale == 'sqrt':
+        color_scale_transform = (np.sqrt, lambda x: x ** 2)
+    elif residence_time_scale == 'log':
+        color_scale_transform = (np.log, np.exp)
+    else:
+        raise ValueError(f'unknown residence_time_scale={residence_time_scale}')
+
+    fig_patch = get_footprint_img(airport_code, vertical_layer, profile_idx, color_scale_transform=color_scale_transform, residence_time_cutoff=residence_time_cutoff)
 
     fig = Patch()
 
     curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
-    title = f'IAGOS airports and 10-day backward footprint' \
-            f'<br>from <b>{vertical_layer}</b> layer over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) ' \
-            f'on <b>{pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}</b>'
+    title = f'IAGOS airports and 10-day backward footprint (residence time in a total air column during 10-day period)' \
+            f'<br>with the <b>{vertical_layer}</b> layer over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) ' \
+            f'on <b>{pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}</b> as a receptor'
     fig['layout']['title'] = title
 
     # set layer with footprint
-    if AIRPORT_SELECT_ID in dash_ctx:
+    if AIRPORT_SELECT_ID not in dash_ctx:
         # change center and zoom only when airport has changed
-        helper.patch_update(fig['layout'], mapbox_layer)
-    else:
-        if 'mapbox' in mapbox_layer and 'layers' in mapbox_layer['mapbox']:
-            fig['layout']['mapbox']['layers'] = mapbox_layer['mapbox']['layers']
+        del fig_patch['layout']['mapbox']['center']
+        del fig_patch['layout']['mapbox']['zoom']
+
+    helper.patch_update(fig['layout'], fig_patch['layout'])
+    fig['data'][1] = fig_patch['data']
+
     return fig
 
 
@@ -287,7 +306,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
         title={
             'text': f'CO measurements by IAGOS and modelled CO contributions by SOFT-IO (ppb)'
                     f'<br>over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>), '
-                    f'averaged in <b>{vertical_layer}</b> layer',
+                    f'averaged in the <b>{vertical_layer}</b> layer',
                     #f'emission regions={", ".join(emission_region)}</sup>',
         },
         uirevision=airport_code,
@@ -469,7 +488,7 @@ def update_COprofile_fig(
                 x=x_vals,
                 y=CO_profile_ds['height'].values,
                 mode='lines',
-                name=f'{ei} {reg}',
+                name=f'{reg}',
                 legendgroup=f'SOFT-IO {ei}',
                 legendgrouptitle_text=f'SOFT-IO {ei}',
                 stackgroup='one',

@@ -95,6 +95,8 @@ SHOW_TOOLTIPS_SWITCH_ID = 'show_tooltips_switch_id'
 DATA_DOWNLOAD_POPUP_ID = 'data_download_popup'
 ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID = 'only_significant_regions_checkbox'
 ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID = 'only_significant_regions_percentage'
+RESIDENCE_TIME_SCALE_RADIO_ID = 'residence_time_scale_radio'
+RESIDENCE_TIME_CUTOFF_RADIO_ID = 'residence_time_cutoff_radio'
 
 GEO_REGIONS_WITHOUT_TOTAL = ['BONA', 'TENA', 'CEAM', 'NHSA', 'SHSA', 'EURO', 'MIDE', 'NHAF', 'SHAF', 'BOAS', 'CEAS', 'SEAS', 'EQAS', 'AUST']
 GEO_REGIONS = ['TOTAL'] + GEO_REGIONS_WITHOUT_TOTAL
@@ -577,15 +579,15 @@ def get_layout(title_bar, app):
 
     softio_cutoff_group = dbc.InputGroup(
         [
-            dbc.InputGroupText(
+            dbc.InputGroupText([
                 dbc.Checkbox(
                     id=ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID,
                     value=True,
                     persistence=True,
                     persistence_type='session',
                 ),
-            ),
-            dbc.InputGroupText('Show only regions with >'),
+                'Show only regions with > ',
+            ]),
             dbc.Input(
                 id=ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID,
                 type='number',
@@ -593,12 +595,66 @@ def get_layout(title_bar, app):
                 min=0, max=100, value=1,
                 persistence=True, persistence_type='session',
                 debounce=True,
+                size='sm',
             ),
-            dbc.InputGroupText('% of the total contribution'),
+            dbc.InputGroupText([
+                '% of the total contribution',
+            ]),
         ],
         size='lg',
     )
     softio_cutoff_controller = dbc.Row(dbc.Col(softio_cutoff_group, width='auto'), justify='left')
+
+    residence_time_scale_group = dbc.InputGroup(
+        [
+            dbc.InputGroupText([
+                'Scale for the residence time: ',
+                dbc.RadioItems(
+                    id=RESIDENCE_TIME_SCALE_RADIO_ID,
+                    options=[
+                        {'label': 'linear', 'value': 'lin'},
+                        {'label': 'power (0.5)', 'value': 'sqrt'},
+                        {'label': 'log', 'value': 'log'},
+                    ],
+                    value='sqrt',
+                    inline=True,
+                    persistence=True,
+                    persistence_type='session',
+                ),
+            ]),
+        ],
+        size='lg',
+    )
+    residence_time_cutoff_group = dbc.InputGroup(
+        [
+            dbc.InputGroupText([
+                'Cut-off residence time values smaller than ',
+                dbc.RadioItems(
+                    id=RESIDENCE_TIME_CUTOFF_RADIO_ID,
+                    options=[
+                        {'label': '0.03 %', 'value': 3e-4},
+                        {'label': '0.1 %', 'value': 1e-3},
+                        {'label': '0.3 %', 'value': 3e-3},
+                        {'label': '1 %', 'value': 1e-2},
+                        {'label': '3 %', 'value': 3e-2},
+                    ],
+                    value=3e-3,
+                    inline=True,
+                    persistence=True,
+                    persistence_type='session',
+                ),
+                ' of max',
+            ]),
+        ],
+        size='lg',
+    )
+    residence_time_scale_controller = dbc.Row(
+        [
+            dbc.Col(residence_time_scale_group, width='auto'),
+            dbc.Col(residence_time_cutoff_group, width='auto'),
+        ],
+        justify='between'
+    )
 
     tooltips = get_app_tooltips()
 
@@ -639,7 +695,13 @@ def get_layout(title_bar, app):
                     ]),
                     width=4
                 ),
-                dbc.Col(dbc.Card(dbc.CardBody(html.Div(footprint_map, id=FOOTPRINT_MAP_CONTAINER_ID))), width=8),
+                dbc.Col(
+                    dbc.Card([
+                        dbc.CardBody(html.Div(footprint_map, id=FOOTPRINT_MAP_CONTAINER_ID)),
+                        dbc.CardFooter(residence_time_scale_controller),
+                    ]),
+                    width=8
+                ),
             ]),
             *tooltips,
         ],

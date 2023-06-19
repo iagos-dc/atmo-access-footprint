@@ -1,6 +1,7 @@
 import xarray as xr
 import colorcet
 import numpy as np
+import plotly
 import plotly.graph_objects as go
 from pyproj import Transformer
 import datashader
@@ -15,19 +16,17 @@ _3857_to_gcs = Transformer.from_crs(3857, 4326, always_xy=True)
 
 def trim_small_values(da, threshold=0.01, check_if_lon_lat_increasing=False):
     lon, lat = da.geo.get_lon_lat_label()
-    if threshold is not None and threshold > 0:
-        if check_if_lon_lat_increasing:
-            da = da.xrx.make_coordinates_increasing([lon, lat])
-        da_filtered = da.where(da >= da.max() * threshold, drop=True)
-        lon2, lat2 = da_filtered[lon], da_filtered[lat]
-        # BUG fix: lon2, lat2 are 0 size arrays if da has nan's only
-        # TODO: do it properly...
-        if len(lon2) >= 1 and len(lat2) >= 1:
-            da = da.sel({lon: slice(lon2[0], lon2[-1]), lat: slice(lat2[0], lat2[-1])})
+    if check_if_lon_lat_increasing:
+        da = da.xrx.make_coordinates_increasing([lon, lat])
+    da_max = da.max()
+    da_filtered = da.where(da > da_max * threshold, drop=True)
+    lon2, lat2 = da_filtered[lon], da_filtered[lat]
+    # BUG fix: lon2, lat2 are 0 size arrays if da has nan's only
+    # TODO: do it properly...
+    if len(lon2) >= 1 and len(lat2) >= 1:
+        da = da.sel({lon: slice(lon2[0], lon2[-1]), lat: slice(lat2[0], lat2[-1])})
 
-    if threshold is None:
-        threshold = 0
-    return da.where(da > threshold)
+    return da.where(da > da_max * threshold)
 
 
 def assign_proj_coords(data, proj, is_proj_rectilinear=False):
@@ -97,14 +96,33 @@ def _calc_zoom(min_lat, max_lat, min_lon, max_lon):
     return min(np.around(zoom_y, decimals=2), np.around(zoom_x, decimals=2))
 
 
-def get_footprint_viz(da, threshold=0.003):
+# def value_to_color(x):
+#     return np.power(x, 1)
+# def color_to_value(x):
+#     return np.power(x, 1)
+
+def value_to_color(x):
+    return np.log(x)
+
+
+def color_to_value(x):
+    return np.exp(x)
+
+
+def color_to_alpha(x):
+    return np.power(x, 1/2)
+
+
+def get_footprint_viz(da, color_scale_transform, residence_time_cutoff):
+    value_to_color, color_to_value = color_scale_transform
+
     lon, lat = da.geo.get_lon_lat_label()
 
     # BUG fix: must avoid poles - otherwise dash/plotly does not want to refresh the image layer on the map
     # lat in [-85, 85] is because of the range of web Mercator projection
     da = da.sel({lat: slice(-85, 85)})
 
-    da = trim_small_values(da, threshold=threshold)
+    da = trim_small_values(da, threshold=residence_time_cutoff)
 
     # get spatial extent
     (min_lon, max_lon), (min_lat, max_lat) = da[lon].values[[0, -1]], da[lat].values[[0, -1]]
@@ -114,14 +132,70 @@ def get_footprint_viz(da, threshold=0.003):
         zoom = 1
 
     agg, coordinates = regrid(da, upsampling_resol_factor=(10, 10), is_proj_rectilinear=True)
-    im1 = tf.shade(agg, cmap=colorcet.CET_L17, how='linear', alpha=0)
-    agg2 = agg - agg.min()
-    agg2 = agg2 / agg2.max()
-    im2 = tf.shade(np.power(agg2, 1 / 4), cmap='#000000', how='linear', alpha=255, min_alpha=0)
+    agg_max = agg.max().item()
+    agg_min = agg.min().item()
+    # print(agg_max, agg_min)
+
+    agg_color = value_to_color(agg)
+    color_max = value_to_color(agg_max)
+    color_min = value_to_color(agg_min)
+
+    agg_alpha = color_to_alpha(agg_color - color_min)
+    alpha_max = color_to_alpha(color_max - color_min)
+    im1 = tf.shade(agg_color, cmap=colorcet.CET_L17, how='linear', alpha=0, span=[color_min, color_max])
+    im2 = tf.shade(agg_alpha, cmap='#000000', how='linear', alpha=255, min_alpha=0, span=[0, alpha_max])
     im = im1 + im2
     img = im[::-1].to_pil()
 
-    mapbox_layer = {
+    # setup colorscale
+    colorscale = colorcet.CET_L17
+    ncolors = len(colorscale)
+
+    def hex_and_alpha_to_rgba(_hex, a):
+        r, g, b = plotly.colors.hex_to_rgb(_hex)
+        return f'rgba({r}, {g}, {b}, {a})'
+
+    color_frac = np.linspace(0, 1, ncolors)
+    alpha = color_to_alpha(color_frac * (color_max - color_min)) / alpha_max
+    cs = [hex_and_alpha_to_rgba(c, a) for c, a in zip(colorscale, alpha)]
+
+    nticks = 11
+    tickpos = np.linspace(0, 1, nticks)
+    tickvals = color_to_value((1 - tickpos) * color_min + tickpos * color_max)
+    ticktext = [f'{v:.1e}' for v in tickvals]
+    colorscale_trace = {
+        'marker': {
+            'cmax': 1, 'cmin': 0,
+            'colorbar': {
+                'bgcolor': '#d4dadc',
+                'outlinewidth': 0,
+                'thickness': 25,
+                'tickvals': tickpos,
+                'ticktext': ticktext,
+                'title': {
+                    'text': 'Residence<br>time (s km-2)',
+                    'font': {'size': 12},
+                },
+                # 'ticks': 'inside',
+                # 'ticklen': 5,
+                'orientation': 'v',
+                'len': 0.9,
+                'lenmode': 'fraction',
+                'y': 0,
+                'yanchor': 'bottom',
+                'yref': 'paper',
+            },
+            'colorscale': [[c, rgba] for c, rgba in zip(color_frac, cs)],
+            'showscale': True,
+        },
+        'mode': 'markers',
+        'showlegend': False,
+        'type': 'scatter',
+        'x': [None],
+        'y': [None],
+    }
+
+    layout = {
         'mapbox': {
             'center': {
                 'lon': (min_lon + max_lon) / 2,
@@ -133,6 +207,12 @@ def get_footprint_viz(da, threshold=0.003):
                 'source': img,
                 'coordinates': coordinates,
             }]
-        }
+        },
+        'xaxis': {'visible': False},
+        'yaxis': {'visible': False},
     }
-    return mapbox_layer
+
+    return {
+        'data': colorscale_trace,
+        'layout': layout,
+    }
