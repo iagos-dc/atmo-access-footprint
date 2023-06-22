@@ -232,6 +232,7 @@ def add_watermark(fig, textangle=-30, size=None):
         y=y,
         showarrow=False,
     )]
+
     fig.update_layout(annotations=annotations)
     return fig
 
@@ -347,6 +348,8 @@ def get_airports_map(airports_df):
         hoverdistance=1, hovermode='closest',  # hoverlabel=None,
         selectionrevision=False,  # this is crucial !!!
         #showlegend=True,
+        xaxis={'visible': False},
+        yaxis={'visible': False},
     )
 
     # print(fig)

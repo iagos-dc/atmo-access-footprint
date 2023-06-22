@@ -13,7 +13,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
-from log import log_exception, logger, log_callback
+from log import log_exception, logger, log_callback, log_exectime
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
     NEXT_TIME_BUTTON_ID, REWIND_TIME_BUTTON_ID, FASTFORWARD_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
@@ -29,19 +29,72 @@ from footprint_data_access import get_residence_time, get_flight_id_and_profile_
 USE_GL = 500
 
 
-@functools.lru_cache(maxsize=32)
-def get_footprint_img(airport_code, layer, profile_idx, color_scale_transform=(np.log, np.exp), residence_time_cutoff=None):
-    if residence_time_cutoff is None:
-        residence_time_cutoff = 1e-3
+# TODO: improve test for not available footprint data: see e.g. FRA in FT layer on 2013-02-23 06:38
+@functools.lru_cache(maxsize=8)
+def get_footprint_img(
+        airport_code,
+        layer,
+        profile_idx,
+        color_scale_transform=(np.log, np.exp),
+        residence_time_cutoff=1e-3,
+        update_center_and_zoom=True,
+):
+    def _calc_zoom(min_lat, max_lat, min_lon, max_lon):
+        # source: https://stackoverflow.com/questions/46891914/control-mapbox-extent-in-plotly-python-api
+        width_y = max_lat - min_lat
+        width_x = max_lon - min_lon
+        zoom_y = -1.446 * np.log(width_y) + 7.2753
+        zoom_x = -1.415 * np.log(width_x) + 8.7068
+        return min(np.around(zoom_y, decimals=2), np.around(zoom_x, decimals=2))
+
     # print(f'get_footprint_img({airport_code}, {layer}, {profile_idx})')
+    fig = Patch()
+
     flight_id, profile = get_flight_id_and_profile_by_airport_and_profile_idx(airport_code, profile_idx)
     res_time_per_km2 = get_residence_time(flight_id, profile, layer)
     if res_time_per_km2 is not None:
         da = res_time_per_km2.load()
-        # print(da.sum().item())
-        return footprint_viz.get_footprint_viz(da, color_scale_transform=color_scale_transform, residence_time_cutoff=residence_time_cutoff)
+        img, coordinates, colorscale_trace = footprint_viz.get_footprint_viz(
+            da,
+            color_scale_transform=color_scale_transform,
+            residence_time_cutoff=residence_time_cutoff,
+        )
+        fig['layout']['mapbox']['layers'] = [{
+            'sourcetype': 'image',
+            'source': img,
+            'coordinates': coordinates,
+        }]
+        fig['data'][1] = colorscale_trace
+        del fig['layout']['annotations'][1]
+
+        if update_center_and_zoom:
+            # get spatial extent
+            try:
+                lons, lats = zip(*coordinates)
+                min_lat, max_lat, min_lon, max_lon = min(lats), max(lats), min(lons), max(lons)
+                center_lon, center_lat = (min_lon + max_lon) / 2, (min_lat + max_lat) / 2
+                fig['layout']['mapbox']['center'] = {'lon': center_lon, 'lat': center_lat}
+                zoom = _calc_zoom(min_lat, max_lat, min_lon, max_lon)
+                fig['layout']['mapbox']['zoom'] = zoom
+            except Exception as e:
+                logger().exception('_calc_zoom exception', exc_info=e)
     else:
-        return {}
+        annotation = dict(
+            name="n/a",
+            text="Footprint not available",
+            # textangle=textangle,
+            # opacity=0.05,
+            font=dict(color="black", size=75),
+            xref="paper",
+            yref="paper",
+            x=0.5,
+            y=0.5,
+            showarrow=False,
+        )
+        fig['layout']['annotations'][1] = annotation
+        del fig['layout']['mapbox']['layers']
+        del fig['data'][1]
+    return fig
 
 
 # Begin of callback definitions and their helper routines.
@@ -146,24 +199,23 @@ def update_footprint_map(
     else:
         raise ValueError(f'unknown residence_time_scale={residence_time_scale}')
 
-    fig_patch = get_footprint_img(airport_code, vertical_layer, profile_idx, color_scale_transform=color_scale_transform, residence_time_cutoff=residence_time_cutoff)
+    # change center and zoom only when airport has changed
+    update_center_and_zoom = AIRPORT_SELECT_ID in dash_ctx
 
-    fig = Patch()
+    fig = get_footprint_img(
+        airport_code,
+        vertical_layer,
+        profile_idx,
+        color_scale_transform=color_scale_transform,
+        residence_time_cutoff=residence_time_cutoff,
+        update_center_and_zoom=update_center_and_zoom,
+    )
 
     curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
     title = f'IAGOS airports and 10-day backward footprint (residence time in a total air column during 10-day period)' \
             f'<br>with the <b>{vertical_layer}</b> layer over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) ' \
             f'on <b>{pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}</b> as a receptor'
     fig['layout']['title'] = title
-
-    # set layer with footprint
-    if AIRPORT_SELECT_ID not in dash_ctx:
-        # change center and zoom only when airport has changed
-        del fig_patch['layout']['mapbox']['center']
-        del fig_patch['layout']['mapbox']['zoom']
-
-    helper.patch_update(fig['layout'], fig_patch['layout'])
-    fig['data'][1] = fig_patch['data']
 
     return fig
 

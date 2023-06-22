@@ -72,7 +72,7 @@ def log_callback(log_callback_context=True):
                 callback_args_by_time()[str(timenow)] = d
             except Exception as e:
                 try:
-                    logger().exception(f'Could not log the request {d}')
+                    logger().exception(f'Could not log the request {d}', exc_info=e)
                 except Exception:
                     pass
             return func(*args, **kwargs)

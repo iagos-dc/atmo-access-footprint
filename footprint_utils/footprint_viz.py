@@ -9,6 +9,8 @@ from datashader import transfer_functions as tf
 
 from footprint_utils import xarray_extras  # noq
 
+from log import log_exectime
+
 
 _gcs_to_3857 = Transformer.from_crs(4326, 3857, always_xy=True)
 _3857_to_gcs = Transformer.from_crs(3857, 4326, always_xy=True)
@@ -87,28 +89,6 @@ def regrid(da, upsampling_resol_factor=None, proj=3857, regrid_resol=None, is_pr
     return da_regridded, get_spatial_extent(da_regridded, proj_tr_inv)
 
 
-# source: https://stackoverflow.com/questions/46891914/control-mapbox-extent-in-plotly-python-api
-def _calc_zoom(min_lat, max_lat, min_lon, max_lon):
-    width_y = max_lat - min_lat
-    width_x = max_lon - min_lon
-    zoom_y = -1.446 * np.log(width_y) + 7.2753
-    zoom_x = -1.415 * np.log(width_x) + 8.7068
-    return min(np.around(zoom_y, decimals=2), np.around(zoom_x, decimals=2))
-
-
-# def value_to_color(x):
-#     return np.power(x, 1)
-# def color_to_value(x):
-#     return np.power(x, 1)
-
-def value_to_color(x):
-    return np.log(x)
-
-
-def color_to_value(x):
-    return np.exp(x)
-
-
 def color_to_alpha(x):
     return np.power(x, 1/2)
 
@@ -116,20 +96,13 @@ def color_to_alpha(x):
 def get_footprint_viz(da, color_scale_transform, residence_time_cutoff):
     value_to_color, color_to_value = color_scale_transform
 
-    lon, lat = da.geo.get_lon_lat_label()
+    lat = da.geo.get_lat_label()
 
     # BUG fix: must avoid poles - otherwise dash/plotly does not want to refresh the image layer on the map
     # lat in [-85, 85] is because of the range of web Mercator projection
     da = da.sel({lat: slice(-85, 85)})
 
     da = trim_small_values(da, threshold=residence_time_cutoff)
-
-    # get spatial extent
-    (min_lon, max_lon), (min_lat, max_lat) = da[lon].values[[0, -1]], da[lat].values[[0, -1]]
-    try:
-        zoom = _calc_zoom(min_lat, max_lat, min_lon, max_lon)
-    except Exception:
-        zoom = 1
 
     agg, coordinates = regrid(da, upsampling_resol_factor=(10, 10), is_proj_rectilinear=True)
     agg_max = agg.max().item()
@@ -195,24 +168,4 @@ def get_footprint_viz(da, color_scale_transform, residence_time_cutoff):
         'y': [None],
     }
 
-    layout = {
-        'mapbox': {
-            'center': {
-                'lon': (min_lon + max_lon) / 2,
-                'lat': (min_lat + max_lat) / 2,
-            },
-            'zoom': zoom,
-            'layers': [{
-                'sourcetype': 'image',
-                'source': img,
-                'coordinates': coordinates,
-            }]
-        },
-        'xaxis': {'visible': False},
-        'yaxis': {'visible': False},
-    }
-
-    return {
-        'data': colorscale_trace,
-        'layout': layout,
-    }
+    return img, coordinates, colorscale_trace

@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 from footprint_utils import helper
+from log import log_exectime, logger
 
 
 _DATA_PATH = '/home/wolp/data/fp_agg'
@@ -37,12 +38,15 @@ def _valid_airport_code(code):
 
 
 @functools.lru_cache
+@log_exectime
+# TODO: _get_CO_data is called twice (first time due to imports, which is useless)
 def _get_CO_data():
     _CO_ds = xr.load_dataset(CO_data_url, engine='h5netcdf')
     _CO_ds = _CO_ds.stack({'profile_idx': ('flight_id', 'profile')}, create_index=False)
     CO_filter = (_CO_ds['CO_count'] > 0).any('layer') & _valid_airport_code(_CO_ds['code'])
     _CO_ds = _CO_ds.sel({'profile_idx': CO_filter})
     _CO_ds = _CO_ds.assign_coords({'profile_idx': _CO_ds['profile_idx']})
+    logger().info(f'_CO_ds.nbytes = {_CO_ds.nbytes / 1e6}M')
     return _CO_ds
 
 
@@ -66,7 +70,7 @@ def get_iagos_airports(top=None):
         return _iagos_airports
 
 
-@functools.lru_cache(maxsize=128)
+@functools.lru_cache(maxsize=8)
 def get_residence_time(flight_id, profile, layer):
     global _fp_da
     if _fp_da is None:
@@ -79,7 +83,7 @@ def get_residence_time(flight_id, profile, layer):
     return da
 
 
-@functools.lru_cache(maxsize=128)
+@functools.lru_cache(maxsize=256)
 def get_COprofile(flight_id, profile):
     try:
         profile_ds = _COprofile_ds.sel({'flight_id': flight_id, 'profile': profile}).load()
@@ -89,12 +93,13 @@ def get_COprofile(flight_id, profile):
 
 
 @functools.lru_cache
+@log_exectime
 def get_COprofile_climatology():
-    print('get_COprofile_climatology()...')
+    # print('get_COprofile_climatology()...')
     _COprofile_climat_ds = xr.load_dataset(COprofile_climat_data_url, engine='h5netcdf')
     _clim_5y_mean_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).mean()
     _clim_5y_var_ds = _COprofile_climat_ds.rolling({'year': 5}, min_periods=1, center=True).var()
-    print('get_COprofile_climatology()...done')
+    # print('get_COprofile_climatology()...done')
     return xr.Dataset({
         'CO_mean_5y': _clim_5y_mean_ds['CO_mean'],
         'CO_std_5y': np.sqrt(_clim_5y_mean_ds['CO_var'] + _clim_5y_var_ds['CO_mean'])
@@ -105,17 +110,19 @@ def get_coords_by_airport_and_profile_idx(aiport_code, profile_idx):
     return _coords_by_airport[aiport_code][profile_idx]
 
 
-@functools.lru_cache(maxsize=128)
+@functools.lru_cache(maxsize=256)
 def get_flight_id_and_profile_by_airport_and_profile_idx(aiport_code, profile_idx):
     coords = get_coords_by_airport_and_profile_idx(aiport_code, profile_idx)
     return coords['flight_id'].item(), coords['profile'].item()
-    # pd.Timestamp(coords['time'].item())
 
 
-# @functools.lru_cache(maxsize=32)
+@functools.lru_cache(maxsize=32)
+@log_exectime
 def get_CO_ts(airport_code):
     coords = _coords_by_airport[airport_code]
-    return _get_CO_data().sel({'profile_idx': coords['profile_idx']})
+    CO_ts = _get_CO_data().sel({'profile_idx': coords['profile_idx']})
+    logger().info(f'airport_code={airport_code}, CO_ts.nbytes = {CO_ts.nbytes / 1e6}M')
+    return CO_ts
 
 
 _coords_by_airport = {}
