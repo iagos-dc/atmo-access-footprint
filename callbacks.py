@@ -569,7 +569,6 @@ def update_COprofile_fig(
             'text': f'Profile of CO measurements by IAGOS and<br>modelled CO contributions by SOFT-IO (ppb)'
                     f'<br>over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) on <b>{curr_time}</b>',
         },
-        # uirevision=airport_code,
         legend={
             'groupclick': 'toggleitem',
             'traceorder': 'grouped',
@@ -578,7 +577,7 @@ def update_COprofile_fig(
         showlegend=True,
         autosize=False,
         margin={'autoexpand': True, 'r': 180, 't': 105, 'l': 0, 'b': 0},
-        uirevision=airport_code,
+        uirevision=f'{flight_id} {profile} {emission_inventory}',
     )
 
     return add_watermark(fig, textangle=-60, size=75)
