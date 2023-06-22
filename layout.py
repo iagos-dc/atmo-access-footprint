@@ -597,7 +597,7 @@ def get_layout(title_bar, app):
                 maxlength=3,
                 min=0, max=100, value=1,
                 persistence=True, persistence_type='session',
-                debounce=True,
+                debounce=False,
                 size='sm',
             ),
             dbc.InputGroupText([
