@@ -1,3 +1,5 @@
+import flask_app
+
 import pkg_resources
 from dash import dcc, Dash, callback
 from dash import html
@@ -68,6 +70,8 @@ def get_dashboard_layout(app):
 
 app = Dash(
     __name__,
+    server=flask_app.flask_app,
+    url_base_pathname='/dashboard/',
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,
         'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css',
@@ -96,6 +100,12 @@ def update_tooltips_visibility(show_tooltips):
     return [custom_style] * len(get_installed_tooltip_ids())
 
 
+flask_app.protect_dash_app(app)
+
+
 # Launch the Dash application in development mode
 if __name__ == "__main__":
-    app.run_server(debug=True, host='0.0.0.0', port=8048)
+    # print(app.config['routes_pathname_prefix'])
+    # app.run_server(debug=True, host='0.0.0.0', port=8048)
+    app.run_server(debug=True, host='127.0.0.1', port=5000)
+    # flask_app.flask_app.run(debug=True)
