@@ -144,7 +144,7 @@ def log_exception(func):
     def log_exception_wrapper(*args, **kwargs):
         try:
             result = func(*args, **kwargs)
-        except dash.exceptions.PreventUpdate:
+        except dash.exceptions.DashException:
             raise
         except Exception as e:
             logger().exception(

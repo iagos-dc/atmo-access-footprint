@@ -440,7 +440,7 @@ def get_layout(title_bar, app):
 
     show_tooltips_switch = dbc.Switch(
         id=SHOW_TOOLTIPS_SWITCH_ID,
-        label='Help tips',
+        label='Show tooltips',
         value=True,
         persistence=True,
         persistence_type='local',
@@ -668,10 +668,7 @@ def get_layout(title_bar, app):
                     dbc.Card([
                         dbc.CardBody(options_form),
                         dbc.CardFooter(dbc.Row(
-                            [
-                                dbc.Col(show_tooltips_switch, width='auto'),
-                                dbc.Col(data_download_button, width='auto'),
-                            ],
+                            dbc.Col(show_tooltips_switch, width='auto'),
                             justify='between'
                         ))
                     ]),
@@ -684,7 +681,13 @@ def get_layout(title_bar, app):
                                 # for some reason the tooltip to dcc.Graphs must point to Div's
                                 # containing the graphs to work correctly.
                                 # Otherwise, tooltips do not show after the page refresh
-                            dbc.CardFooter(time_control),
+                            dbc.CardFooter(dbc.Row(
+                                [
+                                    dbc.Col(time_control, width='auto'),
+                                    dbc.Col(data_download_button, width='auto'),
+                                ],
+                                justify='between'
+                            )),
                         ],
                     ),
                     width=8,
