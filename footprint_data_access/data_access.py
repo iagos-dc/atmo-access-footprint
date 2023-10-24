@@ -1,8 +1,6 @@
 import functools
-import importlib.resources
 import pathlib
 import numpy as np
-import pandas as pd
 import xarray as xr
 from footprint_utils import helper
 from log import log_exectime, logger

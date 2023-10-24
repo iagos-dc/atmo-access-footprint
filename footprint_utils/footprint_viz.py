@@ -1,15 +1,11 @@
-import xarray as xr
 import colorcet
 import numpy as np
 import plotly
-import plotly.graph_objects as go
 from pyproj import Transformer
 import datashader
 from datashader import transfer_functions as tf
 
 from footprint_utils import xarray_extras  # noq
-
-from log import log_exectime
 
 
 _gcs_to_3857 = Transformer.from_crs(4326, 3857, always_xy=True)
