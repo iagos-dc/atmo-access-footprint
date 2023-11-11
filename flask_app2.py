@@ -118,7 +118,7 @@ def authorize():
         _authorize()
         # Save the token or user information if needed
         # return redirect(url_for('index'))
-        res = redirect(url_for('/dashboard/'))
+        res = redirect(url_for('/'))
         print('authorize...done')
         return res
     except Exception as e:
@@ -131,7 +131,7 @@ def _protect_route(f):
     @functools.wraps(f)
     def new_f(*args, **kwargs):
         session_id = session.get(_SESSION_ID)
-        # print(f'_protect_route::got session_id={session_id}')
+        print(f'_protect_route::got session_id={session_id}')
         if session_id is not None:
             is_session_active = active_sessions.get(session_id, default=False, retry=True)
         else:
@@ -144,10 +144,12 @@ def _protect_route(f):
             # abort(403, description='Access forbidden')
             try:
                 print('try authorize...')
-                oauth.keycloak.authorize_redirect(redirect_uri=url_for('authorize', _external=True))
-                _authorize()
-                print('try authorize...ok')
-                return f(*args, **kwargs)
+                res = oauth.keycloak.authorize_redirect(redirect_uri=url_for('authorize', _external=True))
+                print('try authorize...res=' + str(res))
+                return res
+                #_authorize()
+                #print('try authorize...ok')
+                #return f(*args, **kwargs)
                 # return redirect(url_for('authorize'))
             except Exception as e:
                 try:
