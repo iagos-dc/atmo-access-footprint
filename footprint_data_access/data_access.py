@@ -6,7 +6,7 @@ from footprint_utils import helper
 from log import log_exectime, logger
 
 
-_DATA_PATH = '/home/wolp/data/fp_agg'
+_DATA_PATH = '/home/iagos/atmo-access/atmo-access-footprint/data'
 
 DATA_PATH = pathlib.Path(_DATA_PATH)
 
