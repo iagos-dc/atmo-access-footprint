@@ -1,7 +1,6 @@
 import pkg_resources
-from dash import dcc, Dash, callback
-from dash import html
-from dash.dependencies import Input, Output
+from dash import Dash, html, Input, Output
+from dash import callback
 import dash_bootstrap_components as dbc
 
 from layout import get_app_data_stores, get_layout, SHOW_TOOLTIPS_SWITCH_ID, get_installed_tooltip_ids
