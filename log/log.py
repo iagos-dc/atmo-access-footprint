@@ -48,13 +48,17 @@ def log_args(func):
 
 def log_callback(log_callback_context=True):
     def _log_callback(func):
+        from auth import auth
+
         @functools.wraps(func)
         def log_callback_wrapper(*args, **kwargs):
             #args_as_json = [json.dumps(arg) for arg in args]
             #kwargs_as_json = {kw: json.dumps(arg) for kw, arg in kwargs.items()}
             d = {}
             try:
+                user = auth.get_user_email()
                 d = {
+                    'user': user,
                     'module': func.__module__,
                     'name': func.__qualname__,
                     'args': args,
