@@ -1,11 +1,11 @@
 import pkg_resources
-from dash import dcc, Dash, html, Input, Output
+from dash import Dash, html, Input, Output
+from callback_with_auth import callback_with_auth as callback
 import dash_bootstrap_components as dbc
 
 from auth import auth
 from layout import get_app_data_stores, get_layout, SHOW_TOOLTIPS_SWITCH_ID, get_installed_tooltip_ids
 from log import start_logging_callbacks, log_exception
-from callback_with_auth import callback_with_auth as callback
 
 start_logging_callbacks(pkg_resources.resource_filename('log', 'requests.log'))
 
