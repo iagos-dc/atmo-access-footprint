@@ -1,5 +1,7 @@
 from dash import callback
-from auth import callback_with_auth_decorator
+from auth import auth
 
 
-callback_with_auth = callback_with_auth_decorator(callback)
+_callback_with_auth_decorator = auth.get_callback_with_auth_decorator()
+
+callback_with_auth = _callback_with_auth_decorator(callback)
