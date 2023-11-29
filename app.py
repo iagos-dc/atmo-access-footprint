@@ -1,7 +1,6 @@
 import os
 
 os.environ['DASH_REQUESTS_PATHNAME_PREFIX'] = '/atmo-access/footprint/dashboard/'
-# os.environ['DASH_URL_BASE_PATHNAME'] = '/atmo-access/footprint/dashboard/'
 
 
 import pkg_resources
@@ -107,8 +106,4 @@ auth.finalize_dash_app(app)
 
 # Launch the Dash application in development mode
 if __name__ == "__main__":
-    # print(app.config['routes_pathname_prefix'])
-    # app.run_server(debug=True, host='0.0.0.0', port=8048)
     app.run_server(debug=True, host='127.0.0.1', port=5000)
-    # auth.flask_app.run(debug=True)
-    # flask_app.flask_app.run(debug=True)
