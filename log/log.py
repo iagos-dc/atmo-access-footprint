@@ -1,10 +1,11 @@
-import pkg_resources
 import logging
 import functools
 import time
 import cProfile, pstats, io
 
 import dash
+
+import config
 
 
 _logger = None
@@ -216,5 +217,4 @@ def start_logging_callbacks(log_filename):
     _callback_args_by_time = diskcache.Cache(log_filename)
 
 
-logfile = pkg_resources.resource_filename('log', 'log.txt')
-start_logging(log_filename=logfile, logging_level=logging.INFO)
+start_logging(log_filename=config.APP_LOGS, logging_level=logging.INFO)

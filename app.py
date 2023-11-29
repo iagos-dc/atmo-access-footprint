@@ -1,18 +1,13 @@
-import os
-
-os.environ['DASH_REQUESTS_PATHNAME_PREFIX'] = '/atmo-access/footprint/dashboard/'
-
-
-import pkg_resources
 from dash import Dash, html, Input, Output
 from callback_with_auth import callback_with_auth as callback
 import dash_bootstrap_components as dbc
 
+import config
 from auth import auth
 from layout import get_app_data_stores, get_layout, SHOW_TOOLTIPS_SWITCH_ID, get_installed_tooltip_ids
 from log import start_logging_callbacks, log_exception
 
-start_logging_callbacks(pkg_resources.resource_filename('log', 'requests.log'))
+start_logging_callbacks(config.APP_REQUESTS_LOG)
 
 import callbacks  # noq
 
@@ -85,9 +80,10 @@ server = app.server
 app.layout = get_dashboard_layout(app)
 app.title = 'IAGOS footprints'
 
-# once all the tooltips are setup, we may install the callback which switch them off and on:
+
+# once all the tooltips are set up, we may install the callback which switches them off and on:
 @callback(
-    [Output(tooltip_id, 'style') for tooltip_id in get_installed_tooltip_ids()],
+    *[Output(tooltip_id, 'style') for tooltip_id in get_installed_tooltip_ids()],
     Input(SHOW_TOOLTIPS_SWITCH_ID, 'value')
 )
 @log_exception
@@ -98,7 +94,7 @@ def update_tooltips_visibility(show_tooltips):
         custom_style = {'font-size': '0.8em'}
     else:
         custom_style = {'visibility': 'hidden'}
-    return [custom_style] * len(get_installed_tooltip_ids())
+    return (custom_style,) * len(get_installed_tooltip_ids())
 
 
 auth.finalize_dash_app(app)

@@ -4,12 +4,10 @@ import numpy as np
 import xarray as xr
 from footprint_utils import helper
 from log import log_exectime, logger
+from config import APP_DATA_DIR
 
 
-# _DATA_PATH = '/home/wolp/data/fp_agg'
-_DATA_PATH = '/home/iagos/atmo-access/atmo-access-footprint/data'
-
-DATA_PATH = pathlib.Path(_DATA_PATH)
+DATA_PATH = pathlib.Path(APP_DATA_DIR)
 
 _iagos_airports = None
 _fp_da = None
