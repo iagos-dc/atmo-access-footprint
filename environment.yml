@@ -24,4 +24,5 @@ dependencies:
   - pyproj>=3.5.0
   - zarr>=2.14.2
   - h5netcdf>=1.1.0
+  - authlib>=1.2.1
   - auth-in-dash
