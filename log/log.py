@@ -1,28 +1,37 @@
 import logging
 import functools
 import time
-import cProfile, pstats, io
+import cProfile
+import pstats
+import io
 
+import pandas as pd
 import dash
 
 import config
+try:
+    from auth import get_request_metadata
+except ImportError as e:
+    logging.exception('Cound not find auth module; requests metadata will contain time only', exc_info=e)
+    def get_request_metadata():
+        return pd.Timestamp.now(tz='UTC')
 
 
 _logger = None
 _streamHandler = logging.StreamHandler()
 
 
-_callback_args_by_time = None
+_requests_deque = None
 
 
 def logger():
     return _logger
 
 
-def callback_args_by_time():
-    if _callback_args_by_time is None:
-        raise RuntimeError('_callback_args_by_time is None !!!')
-    return _callback_args_by_time
+def get_requests_deque():
+    if _requests_deque is None:
+        raise RuntimeError('_requests_deque is None !!!')
+    return _requests_deque
 
 
 def log_args(func):
@@ -49,35 +58,27 @@ def log_args(func):
 
 def log_callback(log_callback_context=True):
     def _log_callback(func):
-        from auth import auth
-
         @functools.wraps(func)
         def log_callback_wrapper(*args, **kwargs):
             #args_as_json = [json.dumps(arg) for arg in args]
             #kwargs_as_json = {kw: json.dumps(arg) for kw, arg in kwargs.items()}
-            d = {}
+            request_metadata = {}
             try:
-                user = auth.get_user_email()
-                d = {
-                    'user': user,
+                request_metadata = get_request_metadata()
+                request_metadata.update({
                     'module': func.__module__,
                     'name': func.__qualname__,
                     'args': args,
                     'kwargs': kwargs,
-                }
+                })
                 if log_callback_context:
                     from dash import ctx
-                    d['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids)
+                    request_metadata['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids)
 
-                import pandas as pd
-                timenow = pd.Timestamp.now()
-                #while str(timenow) in callback_args_by_time().keys():
-                while str(timenow) in callback_args_by_time():
-                    timenow += pd.Timedelta(1, 'us')
-                callback_args_by_time()[str(timenow)] = d
+                get_requests_deque().append(request_metadata)
             except Exception as e:
                 try:
-                    logger().exception(f'Could not log the request {d}', exc_info=e)
+                    logger().exception(f'Could not log the request {request_metadata}', exc_info=e)
                 except Exception:
                     pass
             return func(*args, **kwargs)
@@ -114,31 +115,33 @@ def log_callback_with_ret_value(log_callback_context=True):
         def log_callback_wrapper(*args, **kwargs):
             #args_as_json = [json.dumps(arg) for arg in args]
             #kwargs_as_json = {kw: json.dumps(arg) for kw, arg in kwargs.items()}
-            d = {
-                'module': func.__module__,
-                'name': func.__qualname__,
-                'args': args,
-                'kwargs': kwargs,
-            }
-            if log_callback_context:
-                from dash import ctx
-                d['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids, ctx.inputs_list, ctx.outputs_list, ctx.states_list, ctx.triggered)
-
-            import pandas as pd
-            timenow = pd.Timestamp.now()
-            #while str(timenow) in callback_args_by_time().keys():
-            while str(timenow) in callback_args_by_time():
-                timenow += pd.Timedelta(1, 'us')
+            request_metadata = {}
+            try:
+                request_metadata = get_request_metadata()
+                request_metadata.update({
+                    'module': func.__module__,
+                    'name': func.__qualname__,
+                    'args': args,
+                    'kwargs': kwargs,
+                })
+                if log_callback_context:
+                    from dash import ctx
+                    request_metadata['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids, ctx.inputs_list, ctx.outputs_list, ctx.states_list, ctx.triggered)
+            except Exception as e:
+                try:
+                    logger().exception(f'Could not log the request {request_metadata}', exc_info=e)
+                except Exception:
+                    pass
 
             try:
                 ret_val = func(*args, **kwargs)
-                d['ret_val'] = ret_val
+                request_metadata['ret_val'] = ret_val
                 return ret_val
             except Exception as e:
-                d['exception'] = str(e)
+                request_metadata['exception'] = str(e)
                 raise e
             finally:
-                callback_args_by_time()[str(timenow)] = d
+                get_requests_deque().append(request_metadata)
 
         return log_callback_wrapper
     return _log_callback
@@ -212,9 +215,9 @@ def start_logging(log_filename=None, logging_level=logging.WARNING):
 
 
 def start_logging_callbacks(log_filename):
-    global _callback_args_by_time
+    global _requests_deque
     import diskcache
-    _callback_args_by_time = diskcache.Cache(log_filename)
+    _requests_deque = diskcache.Deque(directory=log_filename)
 
 
 start_logging(log_filename=config.APP_LOGS, logging_level=logging.INFO)

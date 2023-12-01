@@ -9,4 +9,5 @@ from .log import (
     start_logging_callbacks,
     log_callback,
     log_callback_with_ret_value,
+    get_requests_deque,
 )
