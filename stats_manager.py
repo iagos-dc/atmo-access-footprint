@@ -10,7 +10,7 @@ if __name__ == '__main__':
     if requests_deque_path.exists():
         req = diskcache.Deque(directory=config.APP_REQUESTS_LOG)
 
-        req = list(filter(lambda x: isinstance(x, dict), req))
+        # req = list(filter(lambda x: isinstance(x, dict), req))  # this is not needed!
         df = pd.DataFrame.from_records(req)
 
         print(df)

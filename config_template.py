@@ -1,8 +1,5 @@
 # Do not commit production version of such file to git!
 
-import logging
-
-
 FLASK_CONFIG = {
     'KEYCLOAK_CLIENT_ID': 'my-keycloak-client-id',
     'SECRET_KEY': 'my secret key',
@@ -21,7 +18,3 @@ APP_LOGS = f'{APP_LOG_DIR}/log.txt'
 APP_REQUESTS_LOG = f'{APP_LOG_DIR}/requests.log'
 
 APP_DATA_DIR = '/home/user/my-app/data'
-
-_LOGGING_LEVEL = logging.INFO
-
-logging.basicConfig(format='%(asctime)s - aaft - %(message)s', level=_LOGGING_LEVEL)
