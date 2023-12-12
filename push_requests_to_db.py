@@ -39,6 +39,8 @@ def get_request_json(req):
     if not comment:
         if req['name'] == 'update_footprint_map':
             comment = _update_footprint_map_comment(*req.get('args', []), **req.get('kwargs', {}))
+        elif req['name'] == 'download_data_popup':
+            comment = 'Attempt for data download (not available yet)'
 
     ignore = user_email in USERS_TO_IGNORE
 
@@ -50,7 +52,7 @@ def get_request_json(req):
         'user': user_email,
         'startDate': timestamp_to_str(req_time),
         'endDate': timestamp_to_str(req_time),
-        'service': 'FOOTPRINT',
+        'service': 'FOOTPRINTS',
         'comment': f'[IAGOS] {comment}',
     }
 
