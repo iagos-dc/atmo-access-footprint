@@ -1,4 +1,4 @@
-from dash import dcc, Dash
+from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
@@ -128,11 +128,6 @@ FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY = {
 }
 
 DEFAULT_AIRPORT = 'FRA'
-
-
-airports_df = footprint_data_access.get_iagos_airports(top=None).sort_values('long_name')
-airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))
-
 
 _installed_tooltip_ids = set()
 
@@ -373,7 +368,7 @@ def get_layout(title_bar, app):
         id=AIRPORT_SELECT_ID,
         options=[
             {'label': f'{long_name} ({short_name}) - {footprint_data_access.nprofiles_by_airport[short_name]} profiles', 'value': short_name}
-            for short_name, long_name in airport_name_by_code.items()
+            for short_name, long_name in footprint_data_access.airport_name_by_code.items()
         ],
         value=DEFAULT_AIRPORT,
         persistence=True,
@@ -511,7 +506,7 @@ def get_layout(title_bar, app):
         ],
     )
 
-    footprint_map = get_airports_map(airports_df)
+    footprint_map = get_airports_map(footprint_data_access.airports_df)
 
     graph_config = dict(GRAPH_CONFIG)
     graph_config.update({

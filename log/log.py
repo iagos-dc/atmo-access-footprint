@@ -56,7 +56,26 @@ def log_args(func):
     return log_args_wrapper
 
 
-def log_callback(log_callback_context=True):
+def log_callback(log_callback_context=True, comment_func=None):
+    """
+    Decorator of a Dash callback which makes the callback to log its call arguments, http request context, etc. into
+    a persistent diskcache.Deque _requests_deque. The log entry is a dictionary:
+     {
+       'user_email' -> user_email (only if authentication in place),
+       'time' -> UTC_time_of_the_call,
+       'ip_address' -> ip_address (only if authentication in place),
+       'module' -> callback_module_name,
+       'name' -> callback_function_name,
+       'args' -> callback_call_args,
+       'kwargs' -> callback_call_kwargs,
+       'ctx' -> dash_trigger (if log_callback_context is True; see below),
+       'comment' -> comment_str (if comment_func is not None)
+     }
+    :param log_callback_context: bool; if True, log {'ctx': (dash.ctx.triggered_id, dash.ctx.triggered_prop_ids)}
+    :param comment_func: a callable or None; a callable should take the same arguments as the callback and produce
+    a string with a description of the callback call
+    :return: a callable which transforms a callback function into a callback with logging
+    """
     def _log_callback(func):
         @functools.wraps(func)
         def log_callback_wrapper(*args, **kwargs):
@@ -74,6 +93,8 @@ def log_callback(log_callback_context=True):
                 if log_callback_context:
                     from dash import ctx
                     request_metadata['ctx'] = (ctx.triggered_id, ctx.triggered_prop_ids)
+                if comment_func is not None:
+                    request_metadata['comment'] = comment_func(*args, **kwargs)
 
                 get_requests_deque().append(request_metadata)
             except Exception as e:

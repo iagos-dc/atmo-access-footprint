@@ -2,6 +2,7 @@ import functools
 import pathlib
 import numpy as np
 import xarray as xr
+
 from footprint_utils import helper
 from log import log_exectime, logger
 from config import APP_DATA_DIR
@@ -127,3 +128,6 @@ nprofiles_by_airport = {}
 for airport, coords_for_airport in _get_CO_data()['profile_idx'].groupby('code'):
     _coords_by_airport[airport] = coords_for_airport.sortby('time')
     nprofiles_by_airport[airport] = len(_coords_by_airport[airport]['profile_idx'])
+
+airports_df = get_iagos_airports(top=None).sort_values('long_name')
+airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))

@@ -18,12 +18,12 @@ from log import log_exception, logger, log_callback, log_exectime
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
     NEXT_TIME_BUTTON_ID, REWIND_TIME_BUTTON_ID, FASTFORWARD_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
-    COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, airport_name_by_code, airports_df, \
-    GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, \
+    COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, \
     DATA_DOWNLOAD_POPUP_ID, add_watermark, ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID, \
     RESIDENCE_TIME_SCALE_RADIO_ID, RESIDENCE_TIME_CUTOFF_RADIO_ID
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
+    airports_df, airport_name_by_code, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
 
 
@@ -167,6 +167,16 @@ def update_current_time_by_airport(
     return current_profile_idx_by_airport, curr_time, False
 
 
+def _update_footprint_map_comment(
+        airport_code, vertical_layer, current_profile_idx_by_airport,
+        *args, **kwargs
+):
+    airport_name = airport_name_by_code[airport_code]
+    profile_idx = current_profile_idx_by_airport.get(airport_code, 0)
+    curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
+    return f'Footprint from {vertical_layer} layer over {airport_name} ({airport_code}) on {pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}'
+
+
 @callback(
     Output(FOOTPRINT_MAP_GRAPH_ID, 'figure'),
     Input(AIRPORT_SELECT_ID, 'value'),
@@ -177,7 +187,7 @@ def update_current_time_by_airport(
     prevent_initial_call=True,
 )
 @log_exception
-@log_callback(log_callback_context=False)
+@log_callback(log_callback_context=False, comment_func=_update_footprint_map_comment)
 def update_footprint_map(
         airport_code, vertical_layer, current_profile_idx_by_airport,
         residence_time_scale, residence_time_cutoff,
