@@ -44,8 +44,9 @@ GRAPH_MAP_CONFIG = {
     'toImageButtonOptions': {
         'filename': 'footprint',
         'format': 'png',
-        'width': 1200,
-        'height': 800,
+        'width': 1000,
+        'height': 600,
+        'scale': 2,
     },
 }
 
@@ -513,10 +514,10 @@ def get_layout(title_bar, app):
     graph_config.update({
         'toImageButtonOptions': {
             'filename': 'CO-time-series',
-            'format': 'svg',
-            'height': 600,
-            'width': 1200,
-            # 'scale': 2,
+            'format': 'png',
+            'height': 500,
+            'width': 1000,
+            'scale': 2,
         },
     })
     ts_graph = dcc.Graph(
@@ -533,7 +534,7 @@ def get_layout(title_bar, app):
             'filename': 'CO-profile',
             'format': 'png',
             'height': 700,
-            'width': 600,
+            'width': 500,
             'scale': 2,
         },
     })
