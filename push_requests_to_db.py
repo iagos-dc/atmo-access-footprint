@@ -14,6 +14,7 @@ import footprint_data_access
 
 USERS_TO_IGNORE = [
     'pawel.wolff@aero.obs-mip.fr',
+    'damien.boulanger@obs-mip.fr',
 ]
 
 

@@ -42,16 +42,27 @@ def get_dashboard_layout(app):
                 ],
                 style={'text-align': 'center'},
             ),
-            html.Div(children=[
-                html.A(
-                    html.Img(
-                        src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
-                        style={'float': 'right', 'height': '80px', 'margin-top': '10px'}
+            html.Div(children=dbc.Row(
+                [
+                    dbc.Col(
+                        html.A(
+                            html.Img(
+                                src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
+                                style={'float': 'right', 'height': '80px', 'margin-top': '10px'}
+                            ),
+                            href="https://www.atmo-access.eu/",
+                            target='_blank',
+                        ),
                     ),
-                    href="https://www.atmo-access.eu/",
-                    target='_blank',
-                ),
-            ]),
+                    dbc.Col(
+                        html.A(
+                            className='fa-solid fa-circle-info fa-2x',
+                            href=f'https://www.atmo-access.eu/atmo-access-iagos-footprints-service-help/',
+                            target='_blank',
+                        ),
+                    )
+                ]
+            )),
         ]
     )
 
@@ -72,6 +83,7 @@ app = Dash(
     external_stylesheets=[
         dbc.themes.BOOTSTRAP,
         'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css',
+        'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
         #'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css',
     ],
 )

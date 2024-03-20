@@ -443,6 +443,7 @@ def get_layout(title_bar, app):
 
     data_download_button = dbc.Button(
         id=DATA_DOWNLOAD_BUTTON_ID,
+        disabled=True,
         n_clicks=0,
         color='primary', type='submit',
         style={'font-weight': 'bold'},
@@ -530,10 +531,10 @@ def get_layout(title_bar, app):
     graph_config.update({
         'toImageButtonOptions': {
             'filename': 'CO-profile',
-            'format': 'svg',
-            'height': 900,
+            'format': 'png',
+            'height': 700,
             'width': 600,
-            # 'scale': 2,
+            'scale': 2,
         },
     })
     profile_graph = dcc.Graph(
