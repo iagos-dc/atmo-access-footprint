@@ -46,6 +46,14 @@ def get_dashboard_layout(app):
                 [
                     dbc.Col(
                         html.A(
+                            className='fa-solid fa-circle-info fa-2x',
+                            href=f'https://www.atmo-access.eu/atmo-access-iagos-footprints-service-help/',
+                            target='_blank',
+                            #style='text-decoration:none',
+                        ),
+                    ),
+                    dbc.Col(
+                        html.A(
                             html.Img(
                                 src=app.get_asset_url(ATMO_ACCESS_LOGO_FILENAME),
                                 style={'float': 'right', 'height': '80px', 'margin-top': '10px'}
@@ -54,13 +62,6 @@ def get_dashboard_layout(app):
                             target='_blank',
                         ),
                     ),
-                    dbc.Col(
-                        html.A(
-                            className='fa-solid fa-circle-info fa-2x',
-                            href=f'https://www.atmo-access.eu/atmo-access-iagos-footprints-service-help/',
-                            target='_blank',
-                        ),
-                    )
                 ]
             )),
         ]
