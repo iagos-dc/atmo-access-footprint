@@ -10,4 +10,5 @@ from .log import (
     log_callback,
     log_callback_with_ret_value,
     get_requests_deque,
+    dump_exception_to_log
 )

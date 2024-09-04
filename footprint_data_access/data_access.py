@@ -1,6 +1,7 @@
 import functools
 import pathlib
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from footprint_utils import helper
@@ -10,7 +11,6 @@ from config import APP_DATA_DIR
 
 DATA_PATH = pathlib.Path(APP_DATA_DIR)
 
-_iagos_airports = None
 _fp_da = None
 
 CO_data_url = DATA_PATH / 'CO_data.nc'
@@ -48,24 +48,59 @@ def _get_CO_data():
     return _CO_ds
 
 
-def get_iagos_airports(top=None):
-    global _iagos_airports
-    if _iagos_airports is None:
-        ds = _get_CO_data().reset_coords()[['code', 'city', 'state', 'lon', 'lat', 'elevation']]
+@functools.cache
+def _get_airports_data():
+    return _get_CO_data().reset_coords()[['code', 'city', 'state', 'lon', 'lat', 'elevation', 'time']]
+
+
+def apply_time_filter(ds, date_from=None, date_to=None):
+    conds = []
+    if date_from:
+        cond = ds['time'] >= pd.to_datetime(date_from)
+        conds.append(cond)
+    if date_to:
+        cond = ds['time'] <= pd.to_datetime(date_to)
+        conds.append(cond)
+    if len(conds) == 2:
+        cond = conds[0] & conds[1]
+    elif len(conds) == 1:
+        cond, = conds
+    else:
+        cond = None
+    if cond is not None:
+        ds = ds.where(cond, drop=True)
+    return ds
+
+
+@functools.lru_cache(maxsize=32)
+def get_iagos_airports(date_from=None, date_to=None, top=None):
+    ds = _get_airports_data()
+    ds = apply_time_filter(ds, date_from=date_from, date_to=date_to)
+    if ds['code'].size == 0:
+        airport_ds = ds
+        airport_ds['nprofiles'] = pd.Series([], dtype=int)
+    else:
         airport_ds = ds.groupby('code').first()
         ds = ds.assign({'nprofiles': ds['profile_idx']})
         airport_ds['nprofiles'] = ds[['nprofiles', 'code']].groupby('code').count()['nprofiles']
-        _iagos_airports = airport_ds.to_pandas().reset_index().rename(columns={
-            'code': 'short_name',
-            'city': 'long_name',
-            'lon': 'longitude',
-            'lat': 'latitude',
-            'elevation': 'altitude',
-        })
-    if top is not None:
-        return _iagos_airports.nlargest(top, 'nprofiles')
+
+    _iagos_airports = airport_ds.to_dataframe().reset_index().rename(columns={
+        'code': 'short_name',
+        'city': 'long_name',
+        'lon': 'longitude',
+        'lat': 'latitude',
+        'elevation': 'altitude',
+    })
+
+    if date_from is not None or date_to is not None:
+        mask = airports_df['short_name'].isin(_iagos_airports['short_name'])
     else:
-        return _iagos_airports
+        mask = None
+
+    if top is not None and len(_iagos_airports) > 0:
+        return _iagos_airports.nlargest(top, 'nprofiles'), mask
+    else:
+        return _iagos_airports, mask
 
 
 @functools.lru_cache(maxsize=8)
@@ -116,9 +151,10 @@ def get_flight_id_and_profile_by_airport_and_profile_idx(aiport_code, profile_id
 
 @functools.lru_cache(maxsize=32)
 @log_exectime
-def get_CO_ts(airport_code):
+def get_CO_ts(airport_code, date_from=None, date_to=None):
     coords = _coords_by_airport[airport_code]
     CO_ts = _get_CO_data().sel({'profile_idx': coords['profile_idx']})
+    CO_ts = apply_time_filter(CO_ts, date_from=date_from, date_to=date_to)
     logger().info(f'airport_code={airport_code}, CO_ts.nbytes = {CO_ts.nbytes / 1e6}M')
     return CO_ts
 
@@ -129,5 +165,6 @@ for airport, coords_for_airport in _get_CO_data()['profile_idx'].groupby('code')
     _coords_by_airport[airport] = coords_for_airport.sortby('time')
     nprofiles_by_airport[airport] = len(_coords_by_airport[airport]['profile_idx'])
 
-airports_df = get_iagos_airports(top=None).sort_values('long_name')
+airports_df, _ = get_iagos_airports(top=None)
+airports_df = airports_df.sort_values('long_name')
 airport_name_by_code = dict(zip(airports_df['short_name'], airports_df['long_name']))

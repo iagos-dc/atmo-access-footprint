@@ -1,12 +1,13 @@
-name: aats
+name: aaft
 channels:
   - plotly
   - conda-forge
 dependencies:
   - python>=3.9.15
   - pip
-  - dash==2.9.2
+  - dash==2.17.1
   - dash-bootstrap-components>=1.4.0
+  - dash-mantine-components==0.14.4
   - gunicorn>=20.0.4
   - netcdf4>=1.5.8
   - pandas>=1.5.2

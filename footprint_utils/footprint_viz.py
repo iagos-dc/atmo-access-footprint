@@ -98,6 +98,9 @@ def get_footprint_viz(da, color_scale_transform, residence_time_cutoff):
     # lat in [-85, 85] is because of the range of web Mercator projection
     da = da.sel({lat: slice(-85, 85)})
 
+    # must increase precision from float16 to float32, otherwise problems with positivity before taking log or sqrt
+    da = da.astype('f4')
+
     da = trim_small_values(da, threshold=residence_time_cutoff)
 
     agg, coordinates = regrid(da, upsampling_resol_factor=(10, 10), is_proj_rectilinear=True)

@@ -1,3 +1,4 @@
+import warnings
 import sys
 import pathlib
 import toolz
@@ -12,18 +13,21 @@ import dash_bootstrap_components as dbc
 
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from footprint_utils.exception_handler import callback_with_exc_handling, AppException, AppWarning
 
 
 from log import log_exception, logger, log_callback, log_exectime
 from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRAPH_ID, PREVIOUS_TIME_BUTTON_ID, \
+    DATE_FROM_ID, DATE_TO_ID, \
     NEXT_TIME_BUTTON_ID, REWIND_TIME_BUTTON_ID, FASTFORWARD_TIME_BUTTON_ID, CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, \
+    STATION_MASK_STORE_ID, \
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
     COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, \
     DATA_DOWNLOAD_POPUP_ID, add_watermark, ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID, \
     RESIDENCE_TIME_SCALE_RADIO_ID, RESIDENCE_TIME_CUTOFF_RADIO_ID
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
-    airports_df, airport_name_by_code, \
+    airports_df, airport_name_by_code, get_iagos_airports, \
     nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
 
 
@@ -104,9 +108,45 @@ def get_footprint_img(
 # https://dash.plotly.com/  -->  Dash Callback in left menu
 # for more detailed documentation
 
-@callback(
+
+@callback_with_exc_handling(
+    Output(AIRPORT_SELECT_ID, 'options'),
     Output(AIRPORT_SELECT_ID, 'value'),
+    Output(STATION_MASK_STORE_ID, 'data'),
+    Output(DATE_FROM_ID, 'value'),
+    Output(DATE_TO_ID, 'value'),
+    Input(DATE_FROM_ID, 'value'),
+    Input(DATE_TO_ID, 'value'),
+    State(AIRPORT_SELECT_ID, 'value')
+)
+@log_exception
+def filter_airports_by_dates(date_from, date_to, previous_airport_code):
+    airports_df, airports_mask = get_iagos_airports(date_from=date_from, date_to=date_to)
+    options = [
+        {
+            'label': f'{long_name} ({short_name}) - {nprofiles} profiles',
+            'value': short_name
+        }
+        for short_name, long_name, nprofiles in zip(airports_df['short_name'], airports_df['long_name'], airports_df['nprofiles'])
+    ]
+    if options:
+        if previous_airport_code and previous_airport_code in list(airports_df['short_name']):
+            value = previous_airport_code
+        else:
+            nprofiles_max = airports_df['nprofiles'].max()
+            value = airports_df[airports_df['nprofiles'] == nprofiles_max]['short_name'].iloc[0]
+    else:
+        warnings.warn('No airports found for the chosen dates', category=AppWarning)
+        # raise AppException('No airports found for the chosen dates')
+        return dash.no_update, dash.no_update, dash.no_update, None, None
+        # value = None
+    return options, value, airports_mask, dash.no_update, dash.no_update
+
+
+@callback_with_exc_handling(
+    Output(AIRPORT_SELECT_ID, 'value', allow_duplicate=True),
     Input(FOOTPRINT_MAP_GRAPH_ID, 'clickData'),
+    prevent_initial_call=True,
 )
 @log_exception
 def update_airport_on_map_click(map_click_data):
@@ -118,7 +158,7 @@ def update_airport_on_map_click(map_click_data):
         return dash.no_update
 
 
-@callback(
+@callback_with_exc_handling(
     Output(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
     Output(TIME_INPUT_ID, 'value'),
     Output(TIME_INPUT_ID, 'invalid'),
@@ -177,11 +217,12 @@ def _update_footprint_map_comment(
     return f'Footprint from {vertical_layer} layer over {airport_name} ({airport_code}) on {pd.Timestamp(curr_time).strftime("%Y-%m-%d %H:%M")}'
 
 
-@callback(
+@callback_with_exc_handling(
     Output(FOOTPRINT_MAP_GRAPH_ID, 'figure'),
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(VERTICAL_LAYER_RADIO_ID, 'value'),
     Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
+    Input(STATION_MASK_STORE_ID, 'data'),
     Input(RESIDENCE_TIME_SCALE_RADIO_ID, 'value'),
     Input(RESIDENCE_TIME_CUTOFF_RADIO_ID, 'value'),
     prevent_initial_call=True,
@@ -189,7 +230,7 @@ def _update_footprint_map_comment(
 @log_exception
 @log_callback(log_callback_context=False, comment_func=_update_footprint_map_comment)
 def update_footprint_map(
-        airport_code, vertical_layer, current_profile_idx_by_airport,
+        airport_code, vertical_layer, current_profile_idx_by_airport, airport_mask,
         residence_time_scale, residence_time_cutoff,
 ):
     if current_profile_idx_by_airport is None:
@@ -222,6 +263,14 @@ def update_footprint_map(
         update_center_and_zoom=update_center_and_zoom,
     )
 
+    # apply station opacity to fig
+    if airport_mask is not None:
+        _opacity_series = pd.Series(0, index=airports_df.index)
+        _opacity_series[airport_mask] = 1
+    else:
+        _opacity_series = 1
+    fig['data'][0]['marker']['opacity'] = _opacity_series
+
     curr_time = get_coords_by_airport_and_profile_idx(airport_code, profile_idx)['time'].item()
     title = f'IAGOS airports and 10-day backward footprint (residence time in a total air column during 10-day period)' \
             f'<br>with the <b>{vertical_layer}</b> layer over {airport_name_by_code[airport_code]} (<b>{airport_code}</b>) ' \
@@ -231,22 +280,30 @@ def update_footprint_map(
     return fig
 
 
-@callback(
+@callback_with_exc_handling(
     Output(CO_GRAPH_ID, 'figure'),
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(VERTICAL_LAYER_RADIO_ID, 'value'),
     Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
     Input(EMISSION_REGION_SELECT_ID, 'value'),
     Input(CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, 'data'),
+    Input(DATE_FROM_ID, 'value'),
+    Input(DATE_TO_ID, 'value'),
 )
 @log_exception
-def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_region, current_profile_idx_by_airport):
+def update_CO_fig(
+        airport_code, vertical_layer, emission_inventory, emission_region, current_profile_idx_by_airport,
+        date_from, date_to
+):
+    if not airport_code:
+        raise dash.exceptions.PreventUpdate
+
     emission_inventory = sorted(emission_inventory)
 
-    CO_ts = get_CO_ts(airport_code)
+    CO_ts = get_CO_ts(airport_code, date_from=date_from, date_to=date_to)
     CO_ts = CO_ts\
         .sel({'layer': vertical_layer, 'emission_inventory': emission_inventory, 'region': emission_region}, drop=True)\
-        .assign_coords(customdata=('profile_idx', np.arange(len(CO_ts['profile_idx'])))) \
+        .assign_coords({'customdata': ('profile_idx', np.arange(len(CO_ts['profile_idx'])))}) \
         .swap_dims({'profile_idx': 'time'})
 
     CO_ser = {}
@@ -406,7 +463,7 @@ def update_CO_fig(airport_code, vertical_layer, emission_inventory, emission_reg
     return add_watermark(fig)
 
 
-@callback(
+@callback_with_exc_handling(
     Output(PROFILE_GRAPH_ID, 'figure'),
     Input(AIRPORT_SELECT_ID, 'value'),
     Input(EMISSION_INVENTORY_CHECKLIST_ID, 'value'),
@@ -594,7 +651,7 @@ def update_COprofile_fig(
     return add_watermark(fig, textangle=-60, size=75)
 
 
-@callback(
+@callback_with_exc_handling(
     Output(DATA_DOWNLOAD_POPUP_ID, 'children'),
     Input(DATA_DOWNLOAD_BUTTON_ID, 'n_clicks'),
     prevent_initial_call=True,

@@ -168,6 +168,21 @@ def log_callback_with_ret_value(log_callback_context=True):
     return _log_callback
 
 
+def dump_exception_to_log(exc, func=None, args=None, kwargs=None):
+    if func is not None:
+        func_module = func.__module__
+        func_qualname = func.__qualname__
+    else:
+        func_module = '???'
+        func_qualname = '???'
+    logger().exception(
+        f'exception in {func_module}.{func_qualname}\n'
+        f'args={args}\n'
+        f'kwargs={kwargs}',
+        exc_info=exc
+    )
+
+
 def log_exception(func):
     @functools.wraps(func)
     def log_exception_wrapper(*args, **kwargs):

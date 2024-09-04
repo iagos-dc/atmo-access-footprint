@@ -1,8 +1,10 @@
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 import plotly.graph_objects as go
 import plotly.express as px
+from datetime import datetime, date, timedelta
 
 import footprint_data_access
 
@@ -73,12 +75,13 @@ MAPBOX_STYLES = {
 DEFAULT_MAPBOX_STYLE = 'carto-positron'
 
 CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID = 'current_profile_idx_by_airport_store'
+STATION_MASK_STORE_ID = 'station_mask_store'
 
 AIRPORT_SELECT_ID = 'airport_select'
 VERTICAL_LAYER_RADIO_ID = 'vertical_layer_radio'
 TIME_INPUT_ID = 'time_input'
-PERIOD_FROM_INPUT_ID = 'period_from_input'
-PERIOD_TO_INPUT_ID = 'period_to_input'
+DATE_FROM_ID = 'dates_from_picker'
+DATE_TO_ID = 'dates_to_picker'
 EMISSION_INVENTORY_CHECKLIST_ID = 'emission_inventory_checklist'
 EMISSION_REGION_SELECT_ID = 'emission_region_select'
 DATA_DOWNLOAD_BUTTON_ID = 'data_download_button'
@@ -119,12 +122,12 @@ COLOR_HEX_BY_GFED4_REGION = {
 }
 COLOR_HEX_BY_EMISSION_INVENTORY = {
     'GFAS': '#ff0000',
-    'CEDS2': '#0000ff',
+    'CAMS-GLOB-ANT': '#0000ff',
     'ALL': '#9834eb',
     #'ALL': 'rgba(152, 52, 235, 0.3)',
 }
 FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY = {
-    'CEDS2': '/',
+    'CAMS-GLOB-ANT': '/',
     'GFAS': '',
 }
 
@@ -293,7 +296,8 @@ def get_app_tooltips():
 
 def get_app_data_stores():
     return [
-        dcc.Store(id=CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, data={}, storage_type='session')
+        dcc.Store(id=CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, data={}, storage_type='session'),
+        dcc.Store(id=STATION_MASK_STORE_ID, data=None, storage_type='session')
     ]
 
 
@@ -367,11 +371,11 @@ def get_layout(title_bar, app):
 
     airport_selection = dbc.Select(
         id=AIRPORT_SELECT_ID,
-        options=[
-            {'label': f'{long_name} ({short_name}) - {footprint_data_access.nprofiles_by_airport[short_name]} profiles', 'value': short_name}
-            for short_name, long_name in footprint_data_access.airport_name_by_code.items()
-        ],
-        value=DEFAULT_AIRPORT,
+        # options=[
+        #     {'label': f'{long_name} ({short_name}) - {footprint_data_access.nprofiles_by_airport[short_name]} profiles', 'value': short_name}
+        #     for short_name, long_name in footprint_data_access.airport_name_by_code.items()
+        # ],
+        # value=DEFAULT_AIRPORT,
         persistence=True,
         persistence_type='session',
         size='lg',
@@ -414,9 +418,9 @@ def get_layout(title_bar, app):
         id=EMISSION_INVENTORY_CHECKLIST_ID,
         options=[
             {'label': 'Biomass burning (GFAS v1.2)', 'value': 'GFAS'},
-            {'label': 'Anthropogenic (CEDS v2; until 2019)', 'value': 'CEDS2'},
+            {'label': 'Anthropogenic (CAMS-GLOB-ANT v5.3)', 'value': 'CAMS-GLOB-ANT'},
         ],
-        value=['GFAS', 'CEDS2'],
+        value=['GFAS', 'CAMS-GLOB-ANT'],
         inline=False,
         persistence=True,
         persistence_type='session',
@@ -477,6 +481,32 @@ def get_layout(title_bar, app):
         children=html.Div(className='bi bi-chevron-double-right'),
     )
 
+    date_from = dmc.DatePicker(
+        id=DATE_FROM_ID,
+        clearable=True,
+        placeholder='YYYY-MM-DD',
+        debounce=300,
+        label='From',
+        minDate=date(2002, 1, 31),
+        maxDate=date(2025, 12, 31),
+        size='lg',
+        persistence=True,
+        persistence_type='session',
+    )
+    # overful issue: https://community.plotly.com/t/dash-mantine-datepicker-dropdown-rendering-problem/80710/4
+    date_to = dmc.DatePicker(
+        id=DATE_TO_ID,
+        clearable=True,
+        placeholder='YYYY-MM-DD',
+        debounce=300,
+        label='To',
+        minDate=date(2002, 1, 1),
+        maxDate=date(2025, 12, 31),
+        size='lg',
+        persistence=True,
+        persistence_type='session',
+    )
+
     # time_selection_group = dbc.Row(
     #     [
     #         dbc.Label('Time', width=4),
@@ -498,10 +528,15 @@ def get_layout(title_bar, app):
             # time_selection_group,
             get_form_item(html.Div(['CO contribution', html.Br(), '(emission inventory)']), emission_inventory_checklist),
             get_form_item(html.Div(['CO contribution', html.Br(), '(emission region)']), emission_region_selection),
+            dbc.Row([
+                dbc.Col(html.Div(['Dates range', html.Br(), '(optional)']), width=4),
+                dbc.Col(date_from, width=4),
+                dbc.Col(date_to, width=4),
+            ]),
             dbc.Row(
                 html.Img(
                     src=app.get_asset_url('GFED-regions.png'),
-                    style={'margin-bottom': '24px', 'margin-top': '24px'},
+                    style={'margin-bottom': '24px', 'margin-top': '24px', 'width': '70%', 'margin-left': 'auto', 'margin-right': 'auto', 'display': 'block'},
                     # style={'float': 'right', 'height': '80px', 'margin-top': '10px'},
                 ),
             ),

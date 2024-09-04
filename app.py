@@ -1,12 +1,20 @@
+import os
+os.environ['REACT_VERSION'] = '18.2.0'  # needed by dash_mantine_components
+
 from dash import Dash, html, Input, Output
 from callback_with_auth import callback_with_auth as callback
 import dash_bootstrap_components as dbc
+import dash_mantine_components as dmc
 
 import config
 import app_logging  # noq
 from auth import auth
+from callback_with_auth import callback_with_auth as callback
 from layout import get_app_data_stores, get_layout, SHOW_TOOLTIPS_SWITCH_ID, get_installed_tooltip_ids
 from log import start_logging_callbacks, log_exception
+from footprint_utils.exception_handler import callback_with_exc_handling, AppException, AppWarning
+from footprint_utils.exception_handler import alert_popups
+
 
 start_logging_callbacks(config.APP_REQUESTS_LOG)
 
@@ -72,7 +80,7 @@ def get_dashboard_layout(app):
     layout = html.Div(
         id='app-container-div',
         style={'margin': '10px', 'padding-bottom': '0px'},
-        children=get_app_data_stores() + [app_layout]
+        children=get_app_data_stores() + [app_layout] + alert_popups
     )
 
     return layout
@@ -82,6 +90,7 @@ app = Dash(
     __name__,
     server=auth.flask_app,
     external_stylesheets=[
+        dmc.styles.DATES,
         dbc.themes.BOOTSTRAP,
         'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css',
         'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
@@ -91,7 +100,7 @@ app = Dash(
 
 server = app.server
 
-app.layout = get_dashboard_layout(app)
+app.layout = dmc.MantineProvider(get_dashboard_layout(app))
 app.title = 'IAGOS footprints'
 
 
