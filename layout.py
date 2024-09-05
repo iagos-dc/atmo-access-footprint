@@ -67,6 +67,7 @@ NON_INTERACTIVE_GRAPH_CONFIG = {
 
 
 IAGOS_COLOR_HEX = '#456096'
+IAGOS_COLOR_BRIGHT_HEX = '#7590C6'
 IAGOS_AIRPORT_SIZE = 8
 MAPBOX_STYLES = {
     'open-street-map': 'open street map',
@@ -319,7 +320,7 @@ def get_airports_map(airports_df):
 
     fig.update_traces(
         marker={'color': IAGOS_COLOR_HEX, 'size': IAGOS_AIRPORT_SIZE},
-        marker_sizemode='area',
+        marker_sizemode='diameter',
         name='IAGOS airports',
         #legendgroup='IAGOS airports3',
         showlegend=True,

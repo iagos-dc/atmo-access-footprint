@@ -22,11 +22,12 @@ from layout import AIRPORT_SELECT_ID, VERTICAL_LAYER_RADIO_ID, FOOTPRINT_MAP_GRA
     CO_GRAPH_ID, PROFILE_GRAPH_ID, EMISSION_INVENTORY_CHECKLIST_ID,  EMISSION_REGION_SELECT_ID, TIME_INPUT_ID, \
     COLOR_HEX_BY_GFED4_REGION, COLOR_HEX_BY_EMISSION_INVENTORY, GEO_REGIONS_WITHOUT_TOTAL, FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY, DATA_DOWNLOAD_BUTTON_ID, \
     DATA_DOWNLOAD_POPUP_ID, add_watermark, ONLY_SIGNIFICANT_REGIONS_CHECKBOX_ID, ONLY_SIGNIFICANT_REGIONS_PERCENTAGE_ID, \
-    RESIDENCE_TIME_SCALE_RADIO_ID, RESIDENCE_TIME_CUTOFF_RADIO_ID
+    RESIDENCE_TIME_SCALE_RADIO_ID, RESIDENCE_TIME_CUTOFF_RADIO_ID, \
+    IAGOS_COLOR_HEX, IAGOS_COLOR_BRIGHT_HEX, IAGOS_AIRPORT_SIZE
 from footprint_utils import footprint_viz, helper
 from footprint_data_access import get_residence_time, get_flight_id_and_profile_by_airport_and_profile_idx, \
     airports_df, airport_name_by_code, get_iagos_airports, \
-    nprofiles_by_airport, get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
+    get_CO_ts, get_coords_by_airport_and_profile_idx, get_COprofile, get_COprofile_climatology
 
 
 USE_GL = 500
@@ -271,12 +272,20 @@ def update_footprint_map(
         update_center_and_zoom=update_center_and_zoom,
     )
 
+    # apply station color to fig (cyan for chosen station)
+    _color_series = pd.Series(IAGOS_COLOR_HEX, index=airports_df.index)
+    _size_series = pd.Series(IAGOS_AIRPORT_SIZE, index=airports_df.index)
+    _color_series.loc[airports_df['short_name'] == airport_code] = 'green' #IAGOS_COLOR_BRIGHT_HEX
+    _size_series.loc[airports_df['short_name'] == airport_code] = 1.5 * IAGOS_AIRPORT_SIZE
+    fig['data'][0]['marker']['color'] = _color_series.values
+    fig['data'][0]['marker']['size'] = _size_series.values
+
     # apply station opacity to fig
     _, airport_mask = get_iagos_airports(date_from=date_from, date_to=date_to)
-
     if airport_mask is not None:
         _opacity_series = pd.Series(0.2, index=airports_df.index)
         _opacity_series[airport_mask] = 1
+        _opacity_series = _opacity_series.values
     else:
         _opacity_series = 1
     fig['data'][0]['marker']['opacity'] = _opacity_series

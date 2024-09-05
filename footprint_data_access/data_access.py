@@ -150,10 +150,8 @@ def get_CO_ts(airport_code, date_from=None, date_to=None):
 
 
 _coords_by_airport = {}
-nprofiles_by_airport = {}
 for airport, coords_for_airport in _get_CO_data()['profile_idx'].groupby('code'):
     _coords_by_airport[airport] = coords_for_airport.sortby('time')
-    nprofiles_by_airport[airport] = len(_coords_by_airport[airport]['profile_idx'])
 
 airports_df, _ = get_iagos_airports(top=None)
 airports_df = airports_df.sort_values('long_name')
