@@ -75,7 +75,6 @@ MAPBOX_STYLES = {
 DEFAULT_MAPBOX_STYLE = 'carto-positron'
 
 CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID = 'current_profile_idx_by_airport_store'
-STATION_MASK_STORE_ID = 'station_mask_store'
 
 AIRPORT_SELECT_ID = 'airport_select'
 VERTICAL_LAYER_RADIO_ID = 'vertical_layer_radio'
@@ -297,7 +296,6 @@ def get_app_tooltips():
 def get_app_data_stores():
     return [
         dcc.Store(id=CURRENT_PROFILE_IDX_BY_AIRPORT_STORE_ID, data={}, storage_type='session'),
-        dcc.Store(id=STATION_MASK_STORE_ID, data=None, storage_type='session')
     ]
 
 

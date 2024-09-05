@@ -54,22 +54,11 @@ def _get_airports_data():
 
 
 def apply_time_filter(ds, date_from=None, date_to=None):
-    conds = []
-    if date_from:
-        cond = ds['time'] >= pd.to_datetime(date_from)
-        conds.append(cond)
-    if date_to:
-        cond = ds['time'] <= pd.to_datetime(date_to)
-        conds.append(cond)
-    if len(conds) == 2:
-        cond = conds[0] & conds[1]
-    elif len(conds) == 1:
-        cond, = conds
-    else:
-        cond = None
-    if cond is not None:
-        ds = ds.where(cond, drop=True)
-    return ds
+    cond = xr.full_like(ds['time'], fill_value=True, dtype='bool')
+    for _date, cmp in zip([date_from, date_to], [ds['time'].__ge__, ds['time'].__le__]):
+        if _date:
+            cond = cond & cmp(pd.to_datetime(_date))
+    return ds.where(cond, drop=True)
 
 
 @functools.lru_cache(maxsize=32)
@@ -77,7 +66,7 @@ def get_iagos_airports(date_from=None, date_to=None, top=None):
     ds = _get_airports_data()
     ds = apply_time_filter(ds, date_from=date_from, date_to=date_to)
     if ds['code'].size == 0:
-        airport_ds = ds
+        airport_ds = ds  # just to have a structure of the dataset, even if its index is empty
         airport_ds['nprofiles'] = pd.Series([], dtype=int)
     else:
         airport_ds = ds.groupby('code').first()
@@ -154,6 +143,7 @@ def get_flight_id_and_profile_by_airport_and_profile_idx(aiport_code, profile_id
 def get_CO_ts(airport_code, date_from=None, date_to=None):
     coords = _coords_by_airport[airport_code]
     CO_ts = _get_CO_data().sel({'profile_idx': coords['profile_idx']})
+    CO_ts = CO_ts.assign_coords({'profile_idx_for_airport': ('profile_idx', np.arange(len(CO_ts['profile_idx'])))})
     CO_ts = apply_time_filter(CO_ts, date_from=date_from, date_to=date_to)
     logger().info(f'airport_code={airport_code}, CO_ts.nbytes = {CO_ts.nbytes / 1e6}M')
     return CO_ts
