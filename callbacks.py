@@ -8,7 +8,6 @@ import pandas as pd
 import xarray as xr
 import dash
 from dash import Output, Input, State, Patch
-from callback_with_auth import callback_with_auth as callback
 import dash_bootstrap_components as dbc
 
 import plotly.graph_objects as go

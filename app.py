@@ -1,15 +1,12 @@
 import os
 os.environ['REACT_VERSION'] = '18.2.0'  # needed by dash_mantine_components
 
-from dash import Dash, html, Input, Output
-from callback_with_auth import callback_with_auth as callback
+from dash import Dash, html, Input, Output, callback
 import dash_bootstrap_components as dbc
 import dash_mantine_components as dmc
 
 import config
 import app_logging  # noq
-from auth import auth
-from callback_with_auth import callback_with_auth as callback
 from layout import get_app_data_stores, get_layout, SHOW_TOOLTIPS_SWITCH_ID, get_installed_tooltip_ids
 from log import start_logging_callbacks, log_exception
 from footprint_utils.exception_handler import callback_with_exc_handling, AppException, AppWarning
@@ -88,7 +85,6 @@ def get_dashboard_layout(app):
 
 app = Dash(
     __name__,
-    server=auth.flask_app,
     external_stylesheets=[
         dmc.styles.DATES,
         dbc.themes.BOOTSTRAP,
@@ -120,9 +116,6 @@ def update_tooltips_visibility(show_tooltips):
     return (custom_style,) * len(get_installed_tooltip_ids())
 
 
-auth.finalize_dash_app(app)
-
-
 # Launch the Dash application in development mode
 if __name__ == "__main__":
-    app.run_server(debug=True, host='127.0.0.1', port=5000)
+    app.run_server(debug=True, host='0.0.0.0', port=8050)

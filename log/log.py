@@ -14,7 +14,7 @@ try:
 except ImportError as e:
     logging.exception('Cound not find auth module; requests metadata will contain time only', exc_info=e)
     def get_request_metadata():
-        return pd.Timestamp.now(tz='UTC')
+        return {'time': pd.Timestamp.now(tz='UTC')}
 
 
 _logger = None

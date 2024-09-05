@@ -4,9 +4,7 @@ from dash import html, Output, no_update, ctx
 from dash.exceptions import DashException
 import dash_bootstrap_components as dbc
 from log import dump_exception_to_log
-# from dash import callback
-from callback_with_auth import callback_with_auth as callback
-
+from dash import callback
 
 
 ALERT_POPUP_ID = 'alert_popup'
