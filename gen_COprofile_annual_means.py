@@ -21,8 +21,8 @@ if __name__ == '__main__':
     _CO_stat_by_code_ym = xr.Dataset({'CO_mean': CO_by_code_ym.mean(), 'CO_var': CO_by_code_ym.var(ddof=1)})
 
     CO_stat_by_code_ym = _CO_stat_by_code_ym.assign_coords({
-        'code': _CO_stat_by_code_ym.code_ym.str.slice(0, 3),
-        'ym': _CO_stat_by_code_ym.code_ym.str.slice(4, None).astype('M8[s]')
+        'code': _CO_stat_by_code_ym.code_ym.str.slice(0, -8),
+        'ym': _CO_stat_by_code_ym.code_ym.str.slice(-7, None).astype('M8[s]')
     })
     CO_stat_by_code_ym = CO_stat_by_code_ym.assign_coords({'year': CO_stat_by_code_ym['ym'].dt.year})
     code_year = CO_stat_by_code_ym['code'] + '_' + CO_stat_by_code_ym['year'].astype(str)
@@ -33,8 +33,8 @@ if __name__ == '__main__':
     _var = CO_by_code_year.var(ddof=1)
     _CO_stat_by_code_year = xr.Dataset({'CO_mean': _mean['CO_mean'], 'CO_var': _mean['CO_var'] + _var['CO_mean']})
     CO_stat_by_code_year = _CO_stat_by_code_year.assign_coords({
-        'code': _CO_stat_by_code_year['code_year'].str.slice(0, 3),
-        'year': _CO_stat_by_code_year['code_year'].str.slice(4, None).astype('M8[s]')
+        'code': _CO_stat_by_code_year['code_year'].str.slice(0, -5),
+        'year': _CO_stat_by_code_year['code_year'].str.slice(-4, None).astype('M8[s]')
     })
 
     code_year_idx = pd.MultiIndex.from_arrays(

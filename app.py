@@ -33,7 +33,29 @@ def get_dashboard_layout(app):
         html.A('SOFT-IO', href='https://doi.org/10.5194/acp-17-15271-2017', target='_blank'),
         ' CO contributions'
     ])
+
     # logo and application title
+    feedback_button = dbc.Button(
+        href='https://www.atmo-access.eu/virtual-access-feedback-form/#/',
+        target='_blank',
+        color='primary',
+        outline=True,
+        children=html.Div(
+            [
+                html.Div(
+                    'Give feedback',
+                    style={
+                        'font-weight': 'bold',
+                        'font-size': '135%',
+                        'font-variant-caps': 'all-small-caps',
+                        'white-space': 'nowrap'
+                    }
+                ),
+            ],
+        ),
+        size='lg',
+    )
+
     title_and_logo_bar = html.Div(
         style={'display': 'flex', 'justify-content': 'space-between', 'margin-bottom': '0px'},
         children=[
@@ -49,6 +71,7 @@ def get_dashboard_layout(app):
             ),
             html.Div(children=dbc.Row(
                 [
+                    dbc.Col(feedback_button),
                     dbc.Col(
                         html.A(
                             className='fa-solid fa-circle-info fa-2x',

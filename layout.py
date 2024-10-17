@@ -122,12 +122,12 @@ COLOR_HEX_BY_GFED4_REGION = {
 }
 COLOR_HEX_BY_EMISSION_INVENTORY = {
     'GFAS': '#ff0000',
-    'CAMS-GLOB-ANT': '#0000ff',
+    'CAMS': '#0000ff',
     'ALL': '#9834eb',
     #'ALL': 'rgba(152, 52, 235, 0.3)',
 }
 FILLPATTERN_SHAPE_BY_EMISSION_INVENTORY = {
-    'CAMS-GLOB-ANT': '/',
+    'CAMS': '/',
     'GFAS': '',
 }
 
@@ -417,9 +417,9 @@ def get_layout(title_bar, app):
         id=EMISSION_INVENTORY_CHECKLIST_ID,
         options=[
             {'label': 'Biomass burning (GFAS v1.2)', 'value': 'GFAS'},
-            {'label': 'Anthropogenic (CAMS-GLOB-ANT v5.3)', 'value': 'CAMS-GLOB-ANT'},
+            {'label': 'Anthropogenic (CAMS-GLOB-ANT v5.3)', 'value': 'CAMS'},
         ],
-        value=['GFAS', 'CAMS-GLOB-ANT'],
+        value=['GFAS', 'CAMS'],
         inline=False,
         persistence=True,
         persistence_type='session',
